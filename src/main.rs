@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate rocket;
+use chrono::Utc;
 use core::num;
 use rocket::response::status::{BadRequest, NotFound};
 use rocket::serde::{json, json::Json, Deserialize, Serialize};
@@ -333,36 +334,16 @@ fn create_pipeline(speakers: &[Speaker], filters: &[Filter]) -> Vec<Pipeline> {
             })]
             .into_iter(),
         )
-        .chain(
-            hold_filters.iter().map(|(key, v)| {
-                Pipeline::Filter(PipelineFilter {
-                    pipeline_type: PipelineType::Filter,
-                    channel: speakers.iter().position(|s| &s.speaker == *key).unwrap(),
-                    names: v
-                        .iter()
-                        .map(|(i, f)| peq_filter_name(&f.speaker, *i))
-                        .collect(),
-                })
-            }), /*filters
-                .iter()
-                .enumerate()
-                .group_by(|(i, f)| f.speaker)
-                .map::<String, (usize, Iterator<Filter>)>(|key, group| {
-                    Pipeline::Filter(PipelineFilter {
-                        pipeline_type: PipelineType::Filter,
-                        channel: speakers.iter().position(|s| s.speaker == key).unwrap(),
-                        names: group.map(|(i, f)| peq_filter_name(&f.speaker, i)).collect(),
-                    })
-                }),*/ /*filters.iter().enumerate().map(|(i, f)| {
-                    Pipeline::Filter(PipelineFilter {
-                        pipeline_type: PipelineType::Filter,
-                        channel: speakers
-                            .iter()
-                            .position(|s| s.speaker == f.speaker)
-                            .unwrap(),
-                        names: vec![peq_filter_name(&f.speaker, i)],
-                    })*/
-        )
+        .chain(hold_filters.iter().map(|(key, v)| {
+            Pipeline::Filter(PipelineFilter {
+                pipeline_type: PipelineType::Filter,
+                channel: speakers.iter().position(|s| &s.speaker == *key).unwrap(),
+                names: v
+                    .iter()
+                    .map(|(i, f)| peq_filter_name(&f.speaker, *i))
+                    .collect(),
+            })
+        }))
         .collect()
 }
 
@@ -475,25 +456,50 @@ async fn config_version(
     Ok(Json(ProcessorSettings { filters, speakers }))
 }
 
-/*
 #[put("/configuration", format = "application/json", data = "<settings>")]
 async fn write_configuration(
     mut db: Connection<Settings>,
-    settings: Json<ProcessorSettings<'_>>,
-) -> Option<String> {
-    sqlx::query("SELECT content FROM logs WHERE id = ?")
-        .bind(id)
-        .fetch_one(&mut *db)
-        .await
-        .and_then(|r| Ok(r.try_get(0)?))
-        .ok()
-}*/
+    settings: Json<ProcessorSettings>,
+) -> Result<(), BadRequest<String>> {
+    let version = Utc::now().to_string();
+    let config = convert_processor_settings_to_camilla(&settings);
+    //write config to camilla here
+
+    for (index, filter) in settings.filters.iter().enumerate() {
+        let _ = sqlx::query(
+            "INSERT INTO filters (version, index, speaker, freq, gain, q) VALUES(?, ?, ?, ?, ?, ?)",
+        )
+        .bind(&version)
+        .bind(index as i32)
+        .bind(&filter.speaker)
+        .bind(filter.freq)
+        .bind(filter.gain)
+        .bind(filter.q)
+        .execute(&mut *db)
+        .await;
+    }
+    for speaker in settings.speakers.iter() {
+        let _ =sqlx::query(
+            "INSERT INTO speakers (version,speaker, crossover, delay, gain, is_subwoofer) VALUES(?, ?, ?, ?, ?, ?)",
+        )
+        .bind(&version)
+        .bind(&speaker.speaker)
+        .bind(speaker.crossover)
+        .bind(speaker.delay)
+        .bind(speaker.gain)
+        .bind(speaker.is_subwoofer)
+        .execute(&mut *db)
+        .await;
+    }
+    Ok(())
+}
 
 #[launch]
 fn rocket() -> _ {
-    rocket::build()
-        .attach(Settings::init())
-        .mount("/", routes![config_latest, config_version])
+    rocket::build().attach(Settings::init()).mount(
+        "/",
+        routes![config_latest, config_version, write_configuration],
+    )
 }
 
 #[cfg(test)]
