@@ -78,7 +78,7 @@ struct ChannelCount {
 #[serde(crate = "rocket::serde")]
 struct Source {
     channel: usize,
-    gain: i32, //should this be zero always? YES!  there is a "Gain" filter https://github.com/HEnquist/camilladsp/blob/master/exampleconfigs/pulseconfig.yml#L26
+    gain: i32, //I apply this on the Mix.  While there is a "Gain" filter https://github.com/HEnquist/camilladsp/blob/master/exampleconfigs/pulseconfig.yml#L26 this is ONLY for inputs not output
     inverted: bool, //always false in my case
 }
 #[derive(Serialize)]
@@ -131,7 +131,7 @@ impl Mixer {
                     dest: i,
                     sources: vec![Source {
                         channel: i,
-                        gain: 0,
+                        gain: v.gain,
                         inverted: false,
                     }],
                 })
@@ -140,12 +140,12 @@ impl Mixer {
                         .iter()
                         .enumerate()
                         .filter(|(_, v)| v.is_subwoofer) //(0..num_non_sub_channels)
-                        .map(|(i, _v)| Mapping {
+                        .map(|(i, v)| Mapping {
                             //input to output mapping
                             dest: i,
                             sources: vec![Source {
                                 channel: num_non_sub_channels, //only one input sub channel
-                                gain: 0,
+                                gain: v.gain,
                                 inverted: false,
                             }],
                         }),
@@ -156,7 +156,7 @@ impl Mixer {
                         .iter()
                         .enumerate()
                         .filter(|(_, v)| v.is_subwoofer) //(0..num_non_sub_channels)
-                        .map(|(sub_index, _s)| Mapping {
+                        .map(|(sub_index, sub)| Mapping {
                             //input to output mapping
                             dest: sub_index,
                             sources: speakers
@@ -165,7 +165,7 @@ impl Mixer {
                                 .filter(|(_, v)| !v.is_subwoofer)
                                 .map(|(speaker_index, _)| Source {
                                     channel: speaker_index,
-                                    gain: 0,
+                                    gain: sub.gain,
                                     inverted: false,
                                 })
                                 .collect(),
