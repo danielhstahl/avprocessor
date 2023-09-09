@@ -1,0 +1,2 @@
+[default.databases.settings]
+url = "db/settings.sqlite"

@@ -1,17 +1,40 @@
 #[macro_use]
 extern crate rocket;
 use chrono::Utc;
-use core::num;
-use rocket::response::status::{BadRequest, NotFound};
+use rocket::fairing::{self, AdHoc};
+use rocket::response::status::BadRequest;
 use rocket::serde::{json, json::Json, Deserialize, Serialize};
-use rocket::Error;
-use rocket_db_pools::sqlx::{self, Row};
+use rocket::{Build, Rocket};
+use rocket_db_pools::sqlx::{self, Executor};
 use rocket_db_pools::{Connection, Database};
 use std::collections::HashMap;
-
 #[derive(Database)]
 #[database("settings")]
 struct Settings(sqlx::SqlitePool);
+
+async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
+    if let Some(db) = Settings::fetch(&rocket) {
+        let _1=sqlx::query(
+            "CREATE TABLE if not exists filters (version text, filter_index integer, speaker text, freq integer, gain integer, q real, PRIMARY KEY (version, filter_index, speaker));",
+        )
+        .execute(&db.0)
+        .await;
+
+        let _2=sqlx::query(
+        "CREATE TABLE if not exists speakers (version text, speaker text, crossover integer, delay integer, gain integer, is_subwoofer integer, PRIMARY KEY (version, speaker));",
+        )
+        .execute(&db.0)
+        .await;
+
+        let _3 = sqlx::query("CREATE TABLE if not exists versions (version text PRIMARY KEY);")
+            .execute(&db.0)
+            .await;
+
+        Ok(rocket)
+    } else {
+        Err(rocket)
+    }
+}
 
 #[derive(Deserialize, Serialize)]
 #[serde(crate = "rocket::serde")]
@@ -33,9 +56,7 @@ struct Speaker {
     gain: i32,
     is_subwoofer: bool,
 }
-struct Input {
-    is_subwoofer: bool,
-}
+
 #[derive(Deserialize, Serialize)]
 #[serde(crate = "rocket::serde")]
 struct ProcessorSettings {
@@ -57,7 +78,7 @@ struct ChannelCount {
 #[serde(crate = "rocket::serde")]
 struct Source {
     channel: usize,
-    gain: i32,      //should this be zero always?  Where to set per-speaker gain
+    gain: i32, //should this be zero always? YES!  there is a "Gain" filter https://github.com/HEnquist/camilladsp/blob/master/exampleconfigs/pulseconfig.yml#L26
     inverted: bool, //always false in my case
 }
 #[derive(Serialize)]
@@ -104,13 +125,13 @@ impl Mixer {
             mapping: speakers
                 .iter()
                 .enumerate()
-                .filter(|(i, v)| !v.is_subwoofer) //(0..num_non_sub_channels)
+                .filter(|(_, v)| !v.is_subwoofer) //(0..num_non_sub_channels)
                 .map(|(i, v)| Mapping {
                     //input to output mapping
                     dest: i,
                     sources: vec![Source {
                         channel: i,
-                        gain: v.gain,
+                        gain: 0,
                         inverted: false,
                     }],
                 })
@@ -118,13 +139,13 @@ impl Mixer {
                     speakers
                         .iter()
                         .enumerate()
-                        .filter(|(i, v)| v.is_subwoofer) //(0..num_non_sub_channels)
-                        .map(|(i, v)| Mapping {
+                        .filter(|(_, v)| v.is_subwoofer) //(0..num_non_sub_channels)
+                        .map(|(i, _v)| Mapping {
                             //input to output mapping
                             dest: i,
                             sources: vec![Source {
                                 channel: num_non_sub_channels, //only one input sub channel
-                                gain: v.gain,
+                                gain: 0,
                                 inverted: false,
                             }],
                         }),
@@ -134,17 +155,17 @@ impl Mixer {
                     speakers
                         .iter()
                         .enumerate()
-                        .filter(|(i, v)| v.is_subwoofer) //(0..num_non_sub_channels)
-                        .map(|(sub_index, sub)| Mapping {
+                        .filter(|(_, v)| v.is_subwoofer) //(0..num_non_sub_channels)
+                        .map(|(sub_index, _s)| Mapping {
                             //input to output mapping
                             dest: sub_index,
                             sources: speakers
                                 .iter()
                                 .enumerate()
-                                .filter(|(speaker_index, v)| !v.is_subwoofer)
+                                .filter(|(_, v)| !v.is_subwoofer)
                                 .map(|(speaker_index, _)| Source {
                                     channel: speaker_index,
-                                    gain: sub.gain,
+                                    gain: 0,
                                     inverted: false,
                                 })
                                 .collect(),
@@ -172,7 +193,8 @@ enum FilterType {
 #[serde(crate = "rocket::serde")]
 enum DelayUnit {
     //more may be added later
-    MS,
+    #[serde(rename = "ms")]
+    Ms,
 }
 
 #[derive(Serialize)]
@@ -241,6 +263,7 @@ struct CrossoverFilter {
 
 #[derive(Serialize)]
 #[serde(crate = "rocket::serde")]
+#[serde(untagged)]
 enum SpeakerAdjust {
     DelayFilter(DelayFilter),
     PeakingFilter(PeakingFilter),
@@ -277,6 +300,7 @@ struct PipelineMixer {
 
 #[derive(Serialize)]
 #[serde(crate = "rocket::serde")]
+#[serde(untagged)]
 enum Pipeline {
     Filter(PipelineFilter),
     Mixer(PipelineMixer),
@@ -357,7 +381,9 @@ struct CamillaConfig {
     pipeline: Vec<Pipeline>,
 }
 
-fn convert_processor_settings_to_camilla(settings: &ProcessorSettings) -> String {
+fn convert_processor_settings_to_camilla(
+    settings: &ProcessorSettings,
+) -> Result<String, json::serde_json::Error> {
     let mixers: HashMap<String, Mixer> =
         HashMap::from([(subwoofer_mixer_name(), Mixer::init(&settings.speakers))]);
 
@@ -387,7 +413,7 @@ fn convert_processor_settings_to_camilla(settings: &ProcessorSettings) -> String
                         filter_type: FilterType::Delay,
                         parameters: DelayParameters {
                             delay: f.delay,
-                            unit: DelayUnit::MS,
+                            unit: DelayUnit::Ms,
                         },
                     }),
                 )
@@ -419,7 +445,7 @@ fn convert_processor_settings_to_camilla(settings: &ProcessorSettings) -> String
         filters,
         mixers,
     };
-    json::to_string(&result).unwrap()
+    json::to_string(&result)
 }
 
 #[get("/config/latest")]
@@ -456,18 +482,46 @@ async fn config_version(
     Ok(Json(ProcessorSettings { filters, speakers }))
 }
 
-#[put("/configuration", format = "application/json", data = "<settings>")]
+use tungstenite::{connect, Message};
+use url::Url;
+
+#[derive(Serialize)]
+#[serde(crate = "rocket::serde")]
+struct SetConfig {
+    #[serde(rename = "SetConfigJson")]
+    set_config_json: String,
+}
+
+#[put("/config", format = "application/json", data = "<settings>")]
 async fn write_configuration(
     mut db: Connection<Settings>,
     settings: Json<ProcessorSettings>,
 ) -> Result<(), BadRequest<String>> {
     let version = Utc::now().to_string();
-    let config = convert_processor_settings_to_camilla(&settings);
-    //write config to camilla here
 
+    let config = convert_processor_settings_to_camilla(&settings)
+        .map_err(|e| BadRequest(Some(e.to_string())))?;
+
+    println!("json: {}", config);
+    let (mut socket, response) =
+        connect(Url::parse("ws://127.0.0.1:1234").unwrap()).expect("Can't connect");
+    socket
+        .send(Message::Text(
+            json::to_string(&SetConfig {
+                set_config_json: config,
+            })
+            .unwrap(),
+        )) //SetConfigJson
+        .unwrap();
+
+    //write config to camilla here
+    let _ = sqlx::query("INSERT INTO versions (version) VALUES (?)")
+        .bind(&version)
+        .execute(&mut *db)
+        .await;
     for (index, filter) in settings.filters.iter().enumerate() {
         let _ = sqlx::query(
-            "INSERT INTO filters (version, index, speaker, freq, gain, q) VALUES(?, ?, ?, ?, ?, ?)",
+            "INSERT INTO filters (version, filter_index, speaker, freq, gain, q) VALUES (?, ?, ?, ?, ?, ?)",
         )
         .bind(&version)
         .bind(index as i32)
@@ -480,7 +534,7 @@ async fn write_configuration(
     }
     for speaker in settings.speakers.iter() {
         let _ =sqlx::query(
-            "INSERT INTO speakers (version,speaker, crossover, delay, gain, is_subwoofer) VALUES(?, ?, ?, ?, ?, ?)",
+            "INSERT INTO speakers (version, speaker, crossover, delay, gain, is_subwoofer) VALUES (?, ?, ?, ?, ?, ?)",
         )
         .bind(&version)
         .bind(&speaker.speaker)
@@ -496,31 +550,25 @@ async fn write_configuration(
 
 #[launch]
 fn rocket() -> _ {
-    rocket::build().attach(Settings::init()).mount(
-        "/",
-        routes![config_latest, config_version, write_configuration],
-    )
+    rocket::build()
+        .attach(Settings::init())
+        .attach(AdHoc::try_on_ignite("DB Migrations", run_migrations))
+        .mount(
+            "/",
+            routes![config_latest, config_version, write_configuration],
+        )
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::FilterType;
-    use crate::PeakingFilter;
-    use crate::PeakingParameters;
-    use crate::PeakingType;
-
-    use crate::SpeakerAdjust;
-
     use crate::convert_processor_settings_to_camilla;
     use crate::create_pipeline;
     use crate::Filter;
     use crate::Mixer;
     use crate::ProcessorSettings;
     use crate::Speaker;
-    use std::collections::HashMap;
     #[test]
     fn check_mixer_4_speakers_0_sub() {
-        let num_speakers = 4;
         let speakers: Vec<Speaker> = vec![
             Speaker {
                 speaker: "l".to_string(),
@@ -814,7 +862,10 @@ mod tests {
                 },
             ],
         };
-        println!("Json {}", convert_processor_settings_to_camilla(&settings));
+        println!(
+            "Yaml {}",
+            convert_processor_settings_to_camilla(&settings).unwrap()
+        );
         //let result=convert_processor_settings_to_camilla()
     }
 

@@ -9,4 +9,4 @@ Will need to make sure filters are translatable from REW.
 `CREATE TABLE speakers (version text, speaker text, crossover integer, delay integer, gain integer, is_subwoofer boolean PRIMARY KEY (version, speaker));`
 
 Description should include something about the version.
-`CREATE TABLE versions (version text PRIMARY KEY, description text);`
+`CREATE TABLE versions (version text PRIMARY KEY);`
