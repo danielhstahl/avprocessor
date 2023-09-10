@@ -1,7 +1,7 @@
 use crate::processor::Filter;
 use crate::processor::Speaker;
 use rocket::serde::Serialize;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 pub fn delay_filter_name(speaker_name: &str) -> String {
     format!("delay_{}", speaker_name)
 }
@@ -17,8 +17,8 @@ pub fn crossover_speaker_name(speaker_name: &str) -> String {
 pub fn crossover_subwoofer_name(speaker_name: &str) -> String {
     format!("crossover_subwoofer{}", speaker_name)
 }
-pub fn create_crossover_filters(speakers: &[Speaker]) -> HashMap<String, SpeakerAdjust> {
-    HashMap::from_iter(
+pub fn create_crossover_filters(speakers: &[Speaker]) -> BTreeMap<String, SpeakerAdjust> {
+    BTreeMap::from_iter(
         speakers
             .iter()
             .filter(|s| !s.is_subwoofer)
@@ -56,9 +56,9 @@ pub fn create_crossover_filters(speakers: &[Speaker]) -> HashMap<String, Speaker
 
 pub fn create_output_filters(
     speakers: &[Speaker],
-    peq_filters: &HashMap<&String, Vec<(usize, &Filter)>>,
-) -> HashMap<String, SpeakerAdjust> {
-    HashMap::from_iter(
+    peq_filters: &BTreeMap<&String, Vec<(usize, &Filter)>>,
+) -> BTreeMap<String, SpeakerAdjust> {
+    BTreeMap::from_iter(
         peq_filters
             .iter()
             .map(|(speaker, peq)| {
@@ -107,8 +107,8 @@ pub fn create_output_filters(
 
 pub fn compute_peq_filter<'a>(
     filters: &'a [Filter],
-) -> HashMap<&'a String, Vec<(usize, &'a Filter)>> {
-    let mut hold_filters: HashMap<&String, Vec<(usize, &Filter)>> = HashMap::new();
+) -> BTreeMap<&'a String, Vec<(usize, &'a Filter)>> {
+    let mut hold_filters: BTreeMap<&String, Vec<(usize, &Filter)>> = BTreeMap::new();
     for (index, filter) in filters.iter().enumerate() {
         hold_filters
             .entry(&filter.speaker)

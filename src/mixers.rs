@@ -69,9 +69,13 @@ pub fn get_speaker_counts(speakers: &[Speaker]) -> SpeakerCounts {
 pub struct CrossoverChannels {
     pub speaker_channels: Vec<usize>,
     pub subwoofer_channels: Vec<usize>, //these will be the same size; split each main speaker into subwoofer channels
+    pub passthrough_channels: Vec<usize>,
 }
 
-pub fn split_inputs(speaker_counts: &SpeakerCounts) -> Option<(Mixer, CrossoverChannels)> {
+pub fn split_inputs(
+    speakers: &[Speaker],
+    speaker_counts: &SpeakerCounts,
+) -> Option<(Mixer, CrossoverChannels)> {
     let SpeakerCounts {
         speakers_exclude_sub,
         input_subwoofers,
@@ -79,62 +83,52 @@ pub fn split_inputs(speaker_counts: &SpeakerCounts) -> Option<(Mixer, CrossoverC
     } = *speaker_counts;
 
     if output_subwoofers > 0 {
+        let mut hold_indeces: Vec<usize> = vec![];
+        let mut speaker_channels: Vec<usize> = vec![];
+        let mut subwoofer_channels: Vec<usize> = vec![];
+        let mut passthrough_channels: Vec<usize> = vec![];
+
+        for (index, speaker) in speakers.iter().enumerate().filter(|(_, v)| !v.is_subwoofer) {
+            if speaker.crossover.is_some() {
+                speaker_channels.push(hold_indeces.len());
+                hold_indeces.push(index);
+                subwoofer_channels.push(hold_indeces.len());
+                hold_indeces.push(index);
+            } else if speaker.crossover.is_none() {
+                passthrough_channels.push(hold_indeces.len());
+                hold_indeces.push(index);
+            }
+        }
+        //only one of these for now
+        for i in speakers_exclude_sub..(speakers_exclude_sub + input_subwoofers) {
+            //passthrough_channels.push(hold_indeces.len());
+            hold_indeces.push(i);
+        }
+
         let channels = ChannelCount {
             num_in_channel: speakers_exclude_sub + input_subwoofers,
-            num_out_channel: speakers_exclude_sub * 2 + input_subwoofers, //split each input speaker to go to subwoofer channel
+            num_out_channel: hold_indeces.len(),
         };
 
-        let speaker_channels: Vec<usize> =
-            (0..speakers_exclude_sub).map(|index| index * 2).collect();
-
-        let subwoofer_channels: Vec<usize> = (0..speakers_exclude_sub)
-            .map(|index| index * 2 + 1)
-            .collect();
-
-        let mapping = speaker_channels
+        let mapping = hold_indeces
             .iter()
             .enumerate()
-            .zip(subwoofer_channels.iter())
-            .map(|((index, speaker_index), subwoofer_index)| {
-                vec![
-                    Mapping {
-                        dest: *speaker_index,
-                        sources: vec![Source {
-                            channel: index,
-                            gain: 0,
-                            inverted: false,
-                        }],
-                    },
-                    Mapping {
-                        dest: *subwoofer_index,
-                        sources: vec![Source {
-                            channel: index,
-                            gain: 0,
-                            inverted: false,
-                        }],
-                    },
-                ]
-                .into_iter()
+            .map(|(destination_index, source_index)| Mapping {
+                dest: destination_index,
+                sources: vec![Source {
+                    channel: *source_index,
+                    gain: 0,
+                    inverted: false,
+                }],
             })
-            .flatten()
-            .chain(
-                (speakers_exclude_sub..(speakers_exclude_sub + input_subwoofers)).map(|index| {
-                    Mapping {
-                        dest: speakers_exclude_sub + index,
-                        sources: vec![Source {
-                            channel: index,
-                            gain: 0,
-                            inverted: false,
-                        }],
-                    }
-                }),
-            )
             .collect();
+
         return Some((
             Mixer { channels, mapping },
             CrossoverChannels {
                 speaker_channels,
                 subwoofer_channels,
+                passthrough_channels,
             },
         ));
     } else {
@@ -154,8 +148,17 @@ pub fn combine_inputs(
         output_subwoofers,
     } = *speaker_counts;
 
+    let CrossoverChannels {
+        subwoofer_channels,
+        speaker_channels,
+        passthrough_channels,
+    } = crossover_channels;
+
     let channels = ChannelCount {
-        num_in_channel: speakers_exclude_sub * 2 + input_subwoofers, //split_input.channels.num_out_channel,
+        num_in_channel: subwoofer_channels.len()
+            + speaker_channels.len()
+            + passthrough_channels.len()
+            + input_subwoofers, //split_input.channels.num_out_channel,
         num_out_channel: speakers_exclude_sub + output_subwoofers, //split each input speaker to go to subwoofer channel
     };
 
@@ -165,8 +168,7 @@ pub fn combine_inputs(
         .filter(|(_, v)| v.is_subwoofer)
         .map(|(i, _)| Mapping {
             dest: i,
-            sources: crossover_channels
-                .subwoofer_channels
+            sources: subwoofer_channels
                 .iter()
                 .map(|index| Source {
                     channel: *index,
@@ -181,8 +183,7 @@ pub fn combine_inputs(
                 .collect(),
         })
         .chain(
-            crossover_channels
-                .speaker_channels
+            speaker_channels
                 .iter()
                 .zip(
                     speakers
@@ -200,6 +201,14 @@ pub fn combine_inputs(
                     }],
                 }),
         )
+        .chain(passthrough_channels.iter().map(|index| Mapping {
+            dest: *index,
+            sources: vec![Source {
+                channel: *index,
+                gain: 0,
+                inverted: false,
+            }],
+        }))
         .collect();
 
     Mixer { channels, mapping }
@@ -378,7 +387,7 @@ mod tests {
                 gain: 2.0,
             },
         ];
-        let result = split_inputs(&get_speaker_counts(&speakers));
+        let result = split_inputs(&speakers, &get_speaker_counts(&speakers));
         assert!(result.is_none());
     }
     #[test]
@@ -420,7 +429,7 @@ mod tests {
                 gain: 2.0,
             },
         ];
-        let result = split_inputs(&get_speaker_counts(&speakers)).unwrap();
+        let result = split_inputs(&speakers, &get_speaker_counts(&speakers)).unwrap();
         assert!(result.0.mapping.len() == 9);
 
         assert!(result.0.mapping[0].dest == 0);
@@ -449,6 +458,131 @@ mod tests {
 
         assert!(result.0.mapping[8].dest == 8);
         assert!(result.0.mapping[8].sources[0].channel == 4);
+    }
+
+    #[test]
+    fn test_init_mixer_one_sub_passthrough() {
+        let speakers: Vec<Speaker> = vec![
+            Speaker {
+                speaker: "l".to_string(),
+                crossover: None, //no subwoofer in mix
+                delay: 10,
+                is_subwoofer: false,
+                gain: 2.0,
+            },
+            Speaker {
+                speaker: "r".to_string(),
+                crossover: Some(100),
+                delay: 10,
+                is_subwoofer: false,
+                gain: 2.0,
+            },
+            Speaker {
+                speaker: "sl".to_string(),
+                crossover: Some(100),
+                delay: 10,
+                is_subwoofer: false,
+                gain: 2.0,
+            },
+            Speaker {
+                speaker: "sr".to_string(),
+                crossover: Some(100),
+                delay: 10,
+                is_subwoofer: false,
+                gain: 2.0,
+            },
+            Speaker {
+                speaker: "sub1".to_string(),
+                crossover: None,
+                delay: 10,
+                is_subwoofer: true,
+                gain: 2.0,
+            },
+        ];
+        let result = split_inputs(&speakers, &get_speaker_counts(&speakers)).unwrap();
+        assert!(result.0.mapping.len() == 8);
+
+        assert!(result.0.mapping[0].dest == 0); //passthrough
+        assert!(result.0.mapping[0].sources[0].channel == 0);
+
+        assert!(result.0.mapping[1].dest == 1);
+        assert!(result.0.mapping[1].sources[0].channel == 1);
+
+        assert!(result.0.mapping[2].dest == 2);
+        assert!(result.0.mapping[2].sources[0].channel == 1);
+
+        assert!(result.0.mapping[3].dest == 3);
+        assert!(result.0.mapping[3].sources[0].channel == 2);
+
+        assert!(result.0.mapping[4].dest == 4);
+        assert!(result.0.mapping[4].sources[0].channel == 2);
+
+        assert!(result.0.mapping[5].dest == 5);
+        assert!(result.0.mapping[5].sources[0].channel == 3);
+
+        assert!(result.0.mapping[6].dest == 6);
+        assert!(result.0.mapping[6].sources[0].channel == 3);
+
+        assert!(result.0.mapping[7].dest == 7);
+        assert!(result.0.mapping[7].sources[0].channel == 4);
+    }
+
+    #[test]
+    fn test_init_mixer_one_sub_no_crossover() {
+        let speakers: Vec<Speaker> = vec![
+            Speaker {
+                speaker: "l".to_string(),
+                crossover: None, //no subwoofer in mix
+                delay: 10,
+                is_subwoofer: false,
+                gain: 2.0,
+            },
+            Speaker {
+                speaker: "r".to_string(),
+                crossover: None,
+                delay: 10,
+                is_subwoofer: false,
+                gain: 2.0,
+            },
+            Speaker {
+                speaker: "sl".to_string(),
+                crossover: None,
+                delay: 10,
+                is_subwoofer: false,
+                gain: 2.0,
+            },
+            Speaker {
+                speaker: "sr".to_string(),
+                crossover: None,
+                delay: 10,
+                is_subwoofer: false,
+                gain: 2.0,
+            },
+            Speaker {
+                speaker: "sub1".to_string(),
+                crossover: None,
+                delay: 10,
+                is_subwoofer: true,
+                gain: 2.0,
+            },
+        ];
+        let result = split_inputs(&speakers, &get_speaker_counts(&speakers)).unwrap();
+        assert!(result.0.mapping.len() == 5);
+
+        assert!(result.0.mapping[0].dest == 0); //passthrough
+        assert!(result.0.mapping[0].sources[0].channel == 0);
+
+        assert!(result.0.mapping[1].dest == 1);
+        assert!(result.0.mapping[1].sources[0].channel == 1);
+
+        assert!(result.0.mapping[2].dest == 2);
+        assert!(result.0.mapping[2].sources[0].channel == 2);
+
+        assert!(result.0.mapping[3].dest == 3);
+        assert!(result.0.mapping[3].sources[0].channel == 3);
+
+        assert!(result.0.mapping[4].dest == 4);
+        assert!(result.0.mapping[4].sources[0].channel == 4);
     }
     #[test]
     fn test_init_mixer_two_sub() {
@@ -496,7 +630,7 @@ mod tests {
                 gain: 2.0,
             },
         ];
-        let result = split_inputs(&get_speaker_counts(&speakers)).unwrap();
+        let result = split_inputs(&speakers, &get_speaker_counts(&speakers)).unwrap();
         assert!(result.0.mapping.len() == 9);
 
         assert!(result.0.mapping[0].dest == 0);
@@ -578,35 +712,36 @@ mod tests {
             &CrossoverChannels {
                 speaker_channels: vec![0, 2, 4, 6, 8],
                 subwoofer_channels: vec![1, 3, 5, 7, 9],
+                passthrough_channels: vec![],
             },
             &speakers,
         );
-        assert!(mix.channels.num_in_channel == 11); //2*(6-1)+1 sub passthrough
-        assert!(mix.channels.num_out_channel == 6); //total speaker count
+        assert_eq!(mix.channels.num_in_channel, 11); //2*(6-1)+1 sub passthrough
+        assert_eq!(mix.channels.num_out_channel, 6); //total speaker count
 
-        assert!(mix.mapping.len() == 6);
-        assert!(mix.mapping[0].dest == 5); //last channel is sub channel
-        assert!(mix.mapping[0].sources.len() == 6); //6 speakers feeding subwoofer inluding sub passthrough
+        assert_eq!(mix.mapping.len(), 6);
+        assert_eq!(mix.mapping[0].dest, 5); //last channel is sub channel
+        assert_eq!(mix.mapping[0].sources.len(), 6); //6 speakers feeding subwoofer inluding sub passthrough
 
-        assert!(mix.mapping[1].dest == 0);
-        assert!(mix.mapping[1].sources.len() == 1);
-        assert!(mix.mapping[1].sources[0].channel == 0);
+        assert_eq!(mix.mapping[1].dest, 0);
+        assert_eq!(mix.mapping[1].sources.len(), 1);
+        assert_eq!(mix.mapping[1].sources[0].channel, 0);
 
-        assert!(mix.mapping[2].dest == 1);
-        assert!(mix.mapping[2].sources.len() == 1);
-        assert!(mix.mapping[2].sources[0].channel == 2);
+        assert_eq!(mix.mapping[2].dest, 1);
+        assert_eq!(mix.mapping[2].sources.len(), 1);
+        assert_eq!(mix.mapping[2].sources[0].channel, 2);
 
-        assert!(mix.mapping[3].dest == 2);
-        assert!(mix.mapping[3].sources.len() == 1);
-        assert!(mix.mapping[3].sources[0].channel == 4);
+        assert_eq!(mix.mapping[3].dest, 2);
+        assert_eq!(mix.mapping[3].sources.len(), 1);
+        assert_eq!(mix.mapping[3].sources[0].channel, 4);
 
-        assert!(mix.mapping[4].dest == 3);
-        assert!(mix.mapping[4].sources.len() == 1);
-        assert!(mix.mapping[4].sources[0].channel == 6);
+        assert_eq!(mix.mapping[4].dest, 3);
+        assert_eq!(mix.mapping[4].sources.len(), 1);
+        assert_eq!(mix.mapping[4].sources[0].channel, 6);
 
-        assert!(mix.mapping[5].dest == 4);
-        assert!(mix.mapping[5].sources.len() == 1);
-        assert!(mix.mapping[5].sources[0].channel == 8);
+        assert_eq!(mix.mapping[5].dest, 4);
+        assert_eq!(mix.mapping[5].sources.len(), 1);
+        assert_eq!(mix.mapping[5].sources[0].channel, 8);
     }
     #[test]
     fn check_final_mixer_7_speakers_2_sub() {
@@ -667,37 +802,110 @@ mod tests {
             &CrossoverChannels {
                 speaker_channels: vec![0, 2, 4, 6, 8],
                 subwoofer_channels: vec![1, 3, 5, 7, 9],
+                passthrough_channels: vec![],
             },
             &speakers,
         );
-        assert!(mix.channels.num_in_channel == 11); //2*(6-1)+1 sub input
-        assert!(mix.channels.num_out_channel == 7); //total speaker count
+        assert_eq!(mix.channels.num_in_channel, 11); //2*(6-1)+1 sub input
+        assert_eq!(mix.channels.num_out_channel, 7); //total speaker count
 
-        assert!(mix.mapping.len() == 7);
-        assert!(mix.mapping[0].dest == 5); //last two channels are sub channel, though this isn't strictly necessary
-        assert!(mix.mapping[0].sources.len() == 6); //6 input speakers feeding subwoofer including sub passthrough
+        assert_eq!(mix.mapping.len(), 7);
+        assert_eq!(mix.mapping[0].dest, 5); //last two channels are sub channel, though this isn't strictly necessary
+        assert_eq!(mix.mapping[0].sources.len(), 6); //6 input speakers feeding subwoofer including sub passthrough
 
-        assert!(mix.mapping[1].dest == 6); //last two channels are sub channel
-        assert!(mix.mapping[1].sources.len() == 6); //6 input speakers feeding subwoofer including sub passthrough
+        assert_eq!(mix.mapping[1].dest, 6); //last two channels are sub channel
+        assert_eq!(mix.mapping[1].sources.len(), 6); //6 input speakers feeding subwoofer including sub passthrough
 
-        assert!(mix.mapping[2].dest == 0);
-        assert!(mix.mapping[2].sources.len() == 1);
-        assert!(mix.mapping[2].sources[0].channel == 0);
+        assert_eq!(mix.mapping[2].dest, 0);
+        assert_eq!(mix.mapping[2].sources.len(), 1);
+        assert_eq!(mix.mapping[2].sources[0].channel, 0);
 
-        assert!(mix.mapping[3].dest == 1);
-        assert!(mix.mapping[3].sources.len() == 1);
-        assert!(mix.mapping[3].sources[0].channel == 2);
+        assert_eq!(mix.mapping[3].dest, 1);
+        assert_eq!(mix.mapping[3].sources.len(), 1);
+        assert_eq!(mix.mapping[3].sources[0].channel, 2);
 
-        assert!(mix.mapping[4].dest == 2);
-        assert!(mix.mapping[4].sources.len() == 1);
-        assert!(mix.mapping[4].sources[0].channel == 4);
+        assert_eq!(mix.mapping[4].dest, 2);
+        assert_eq!(mix.mapping[4].sources.len(), 1);
+        assert_eq!(mix.mapping[4].sources[0].channel, 4);
 
-        assert!(mix.mapping[5].dest == 3);
-        assert!(mix.mapping[5].sources.len() == 1);
-        assert!(mix.mapping[5].sources[0].channel == 6);
+        assert_eq!(mix.mapping[5].dest, 3);
+        assert_eq!(mix.mapping[5].sources.len(), 1);
+        assert_eq!(mix.mapping[5].sources[0].channel, 6);
 
-        assert!(mix.mapping[6].dest == 4);
-        assert!(mix.mapping[6].sources.len() == 1);
-        assert!(mix.mapping[6].sources[0].channel == 8);
+        assert_eq!(mix.mapping[6].dest, 4);
+        assert_eq!(mix.mapping[6].sources.len(), 1);
+        assert_eq!(mix.mapping[6].sources[0].channel, 8);
+    }
+
+    #[test]
+    fn check_final_mixer_5_speakers_2_sub_one_crossover() {
+        let speakers: Vec<Speaker> = vec![
+            Speaker {
+                speaker: "l".to_string(),
+                crossover: Some(100),
+                delay: 10,
+                is_subwoofer: false,
+                gain: 2.0,
+            },
+            Speaker {
+                speaker: "r".to_string(),
+                crossover: None,
+                delay: 10,
+                is_subwoofer: false,
+                gain: 2.0,
+            },
+            Speaker {
+                speaker: "c".to_string(),
+                crossover: None,
+                delay: 10,
+                is_subwoofer: false,
+                gain: 2.0,
+            },
+            Speaker {
+                speaker: "sub1".to_string(),
+                crossover: None,
+                delay: 10,
+                is_subwoofer: true,
+                gain: 2.0,
+            },
+            Speaker {
+                speaker: "sub2".to_string(),
+                crossover: None,
+                delay: 10,
+                is_subwoofer: true,
+                gain: 2.0,
+            },
+        ];
+
+        let mix = combine_inputs(
+            &get_speaker_counts(&speakers),
+            &CrossoverChannels {
+                speaker_channels: vec![1, 3],
+                subwoofer_channels: vec![2, 4],
+                passthrough_channels: vec![0],
+            },
+            &speakers,
+        );
+        assert_eq!(mix.channels.num_in_channel, 6); //2*(3-1)+1 sub input+1 passthrough
+        assert_eq!(mix.channels.num_out_channel, 5); //total speaker count
+
+        assert_eq!(mix.mapping.len(), 5);
+        assert_eq!(mix.mapping[0].dest, 3); //last two channels are sub channel, though this isn't strictly necessary
+        assert_eq!(mix.mapping[0].sources.len(), 3); //3 input speakers feeding subwoofer including sub passthrough
+
+        assert_eq!(mix.mapping[1].dest, 4); //last two channels are sub channel
+        assert_eq!(mix.mapping[1].sources.len(), 3); //3 input speakers feeding subwoofer including sub passthrough
+
+        assert_eq!(mix.mapping[2].dest, 0);
+        assert_eq!(mix.mapping[2].sources.len(), 1);
+        assert_eq!(mix.mapping[2].sources[0].channel, 0);
+
+        assert_eq!(mix.mapping[3].dest, 1);
+        assert_eq!(mix.mapping[3].sources.len(), 1);
+        assert_eq!(mix.mapping[3].sources[0].channel, 1);
+
+        assert_eq!(mix.mapping[4].dest, 2);
+        assert_eq!(mix.mapping[4].sources.len(), 1);
+        assert_eq!(mix.mapping[4].sources[0].channel, 3);
     }
 }

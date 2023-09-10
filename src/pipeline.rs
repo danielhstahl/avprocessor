@@ -5,11 +5,11 @@ use crate::filters::{
 use crate::mixers::CrossoverChannels;
 use crate::processor::{Filter, Speaker};
 use rocket::serde::Serialize;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 pub fn create_per_speaker_pipeline(
     speakers: &[Speaker],
-    peq_filters: &HashMap<&String, Vec<(usize, &Filter)>>,
+    peq_filters: &BTreeMap<&String, Vec<(usize, &Filter)>>,
 ) -> Vec<Pipeline> {
     speakers
         .iter()
@@ -150,6 +150,7 @@ mod tests {
             &CrossoverChannels {
                 speaker_channels: vec![0, 1, 2],
                 subwoofer_channels: vec![3, 4, 5],
+                passthrough_channels: vec![],
             },
             &speakers,
         );
