@@ -106,7 +106,6 @@ fn get_speaker_counts(speakers: &[Speaker]) -> SpeakerCounts {
         .iter()
         .enumerate()
         .filter(|(_, s)| s.is_subwoofer)
-        //.map(|(i, _)| i)
         .count();
 
     let input_subwoofers = if output_subwoofers > 0 {
@@ -374,7 +373,7 @@ fn create_per_speaker_pipeline(
         .collect()
 }
 
-fn create_pipeline(
+fn create_crossover_pipeline(
     split_mixer_name: String,
     combine_mixer_name: String,
     crossover_channels: &CrossoverChannels,
@@ -644,10 +643,9 @@ fn convert_processor_settings_to_camilla(
                 .into_iter(),
             );
             let mut filters = create_crossover_filters(&settings.speakers);
-            let mut pipeline = create_pipeline(
+            let mut pipeline = create_crossover_pipeline(
                 split_mixer_name(),
                 combine_mixer_name(),
-                //&filters,
                 &crossover_channels,
                 &settings.speakers,
             );
@@ -796,7 +794,7 @@ fn rocket() -> _ {
 mod tests {
     use crate::combine_inputs;
     use crate::convert_processor_settings_to_camilla;
-    use crate::create_pipeline;
+    use crate::create_crossover_pipeline;
     use crate::get_speaker_counts;
     use crate::split_inputs;
     use crate::CrossoverChannels;
@@ -1384,7 +1382,7 @@ mod tests {
                 is_subwoofer: true,
             },
         ];
-        let result = create_pipeline(
+        let result = create_crossover_pipeline(
             "myinitmixer".to_string(),
             "myfinalmixer".to_string(),
             &CrossoverChannels {
