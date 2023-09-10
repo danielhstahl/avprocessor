@@ -2,7 +2,6 @@ use crate::filters::{
     crossover_speaker_name, crossover_subwoofer_name, delay_filter_name, gain_filter_name,
     peq_filter_name,
 };
-use crate::mixers::CrossoverChannels;
 use crate::processor::{Filter, Speaker};
 use rocket::serde::Serialize;
 use std::collections::BTreeMap;
@@ -34,38 +33,32 @@ pub fn create_per_speaker_pipeline(
 pub fn create_crossover_pipeline(
     split_mixer_name: String,
     combine_mixer_name: String,
-    crossover_channels: &CrossoverChannels,
-    speakers: &[Speaker],
+    input_channel_mapping: &BTreeMap<&String, (bool, usize, Vec<usize>)>,
 ) -> Vec<Pipeline> {
     std::iter::once(Pipeline::Mixer(PipelineMixer {
         pipeline_type: PipelineType::Mixer,
         name: split_mixer_name,
     }))
     .chain(
-        crossover_channels
-            .speaker_channels
+        input_channel_mapping
             .iter()
-            .zip(speakers.iter().filter(|v| !v.is_subwoofer))
-            .map(|(source_index, s)| {
-                Pipeline::Filter(PipelineFilter {
-                    pipeline_type: PipelineType::Filter,
-                    channel: *source_index,
-                    names: vec![crossover_speaker_name(&s.speaker)],
-                })
-            }),
-    )
-    .chain(
-        crossover_channels
-            .subwoofer_channels
-            .iter()
-            .zip(speakers.iter().filter(|v| !v.is_subwoofer))
-            .map(|(source_index, s)| {
-                Pipeline::Filter(PipelineFilter {
-                    pipeline_type: PipelineType::Filter,
-                    channel: *source_index,
-                    names: vec![crossover_subwoofer_name(&s.speaker)],
-                })
-            }),
+            .filter(|(_, (is_crossover, _, _))| *is_crossover)
+            .map(|(key, (_, _, channel_indeces))| {
+                vec![
+                    Pipeline::Filter(PipelineFilter {
+                        pipeline_type: PipelineType::Filter,
+                        channel: channel_indeces[0],
+                        names: vec![crossover_speaker_name(&key)],
+                    }),
+                    Pipeline::Filter(PipelineFilter {
+                        pipeline_type: PipelineType::Filter,
+                        channel: channel_indeces[1],
+                        names: vec![crossover_subwoofer_name(&key)],
+                    }),
+                ]
+                .into_iter()
+            })
+            .flatten(),
     )
     .chain(std::iter::once(Pipeline::Mixer(PipelineMixer {
         pipeline_type: PipelineType::Mixer,
@@ -110,49 +103,24 @@ pub enum Pipeline {
 mod tests {
     use super::{create_crossover_pipeline, create_per_speaker_pipeline, Pipeline};
     use crate::filters::compute_peq_filter;
-    use crate::mixers::CrossoverChannels;
     use crate::processor::{Filter, Speaker};
+    use std::collections::BTreeMap;
     #[test]
     fn check_create_pipeline() {
-        let speakers = vec![
-            Speaker {
-                speaker: "l".to_string(),
-                crossover: Some(80),
-                delay: 10,
-                gain: 1.0,
-                is_subwoofer: false,
-            },
-            Speaker {
-                speaker: "c".to_string(),
-                crossover: Some(80),
-                delay: 10,
-                gain: 1.0,
-                is_subwoofer: false,
-            },
-            Speaker {
-                speaker: "r".to_string(),
-                crossover: Some(80),
-                delay: 10,
-                gain: 1.0,
-                is_subwoofer: false,
-            },
-            Speaker {
-                speaker: "sub1".to_string(),
-                crossover: Some(80),
-                delay: 10,
-                gain: 1.0,
-                is_subwoofer: true,
-            },
-        ];
+        let mut input_channel_mapping: BTreeMap<&String, (bool, usize, Vec<usize>)> =
+            BTreeMap::new();
+        let l = "l".to_string();
+        let r = "r".to_string();
+        let c = "c".to_string();
+        let sub1 = "sub1".to_string();
+        input_channel_mapping.insert(&l, (true, 0, vec![0, 1]));
+        input_channel_mapping.insert(&r, (true, 1, vec![2, 3]));
+        input_channel_mapping.insert(&c, (true, 2, vec![4, 5]));
+        input_channel_mapping.insert(&sub1, (false, 3, vec![6]));
         let result = create_crossover_pipeline(
             "myinitmixer".to_string(),
             "myfinalmixer".to_string(),
-            &CrossoverChannels {
-                speaker_channels: vec![0, 1, 2],
-                subwoofer_channels: vec![3, 4, 5],
-                passthrough_channels: vec![],
-            },
-            &speakers,
+            &input_channel_mapping,
         );
         assert!(result.len() == 8); //2*(4-1) for cxfilters+2 for mixer
     }
