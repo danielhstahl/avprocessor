@@ -5,7 +5,7 @@ use rocket::fairing::{self, AdHoc};
 use rocket::response::status::BadRequest;
 use rocket::serde::{json, json::Json, Deserialize, Serialize};
 use rocket::{Build, Rocket};
-use rocket_db_pools::sqlx::{self, Executor};
+use rocket_db_pools::sqlx::{self};
 use rocket_db_pools::{Connection, Database};
 use std::collections::HashMap;
 #[derive(Database)]
@@ -100,7 +100,6 @@ struct SpeakerCounts {
     speakers_exclude_sub: usize,
     input_subwoofers: usize,
     output_subwoofers: usize,
-    index_of_input_subwoofer: Option<usize>,
 }
 fn get_speaker_counts(speakers: &[Speaker]) -> SpeakerCounts {
     let output_subwoofers = speakers
@@ -118,16 +117,10 @@ fn get_speaker_counts(speakers: &[Speaker]) -> SpeakerCounts {
 
     let speakers_exclude_sub = speakers.len() - output_subwoofers;
 
-    let index_of_input_subwoofer = if input_subwoofers > 0 {
-        Some(speakers_exclude_sub) //BY ASSUMPTION!  Subwoofer input is the last input
-    } else {
-        None
-    };
     SpeakerCounts {
         speakers_exclude_sub,
         input_subwoofers,
         output_subwoofers,
-        index_of_input_subwoofer,
     }
 }
 
@@ -159,21 +152,22 @@ fn split_inputs(speakers: &[Speaker]) -> Option<(Mixer, CrossoverChannels)> {
 
         let mapping = speaker_channels
             .iter()
+            .enumerate()
             .zip(subwoofer_channels.iter())
-            .map(|(speaker_index, subwoofer_index)| {
+            .map(|((index, speaker_index), subwoofer_index)| {
                 vec![
                     Mapping {
                         dest: *speaker_index,
                         sources: vec![Source {
-                            channel: *speaker_index,
+                            channel: index,
                             gain: 0,
                             inverted: false,
                         }],
                     },
                     Mapping {
-                        dest: *speaker_index,
+                        dest: *subwoofer_index,
                         sources: vec![Source {
-                            channel: *subwoofer_index,
+                            channel: index,
                             gain: 0,
                             inverted: false,
                         }],
@@ -185,9 +179,9 @@ fn split_inputs(speakers: &[Speaker]) -> Option<(Mixer, CrossoverChannels)> {
             .chain(
                 (speakers_exclude_sub..(speakers_exclude_sub + input_subwoofers)).map(|index| {
                     Mapping {
-                        dest: index,
+                        dest: speakers_exclude_sub + index,
                         sources: vec![Source {
-                            channel: speakers_exclude_sub + index,
+                            channel: index,
                             gain: 0,
                             inverted: false,
                         }],
@@ -207,24 +201,12 @@ fn split_inputs(speakers: &[Speaker]) -> Option<(Mixer, CrossoverChannels)> {
     }
 }
 
-fn create_crossover_filters(
-    //split_mixer: &Mixer,
-    speakers: &[Speaker],
-) -> HashMap<String, SpeakerAdjust> {
-    let SpeakerCounts {
-        speakers_exclude_sub,
-        input_subwoofers,
-        output_subwoofers,
-        index_of_input_subwoofer,
-    } = get_speaker_counts(&speakers);
-
+fn create_crossover_filters(speakers: &[Speaker]) -> HashMap<String, SpeakerAdjust> {
     HashMap::from_iter(
         speakers
-            //.mapping
             .iter()
-            .enumerate()
-            .filter(|(_i, s)| !s.is_subwoofer)
-            .map(|(i, speaker)| {
+            .filter(|s| !s.is_subwoofer)
+            .map(|speaker| {
                 vec![
                     (
                         crossover_speaker_name(&speaker.speaker),
@@ -256,15 +238,12 @@ fn create_crossover_filters(
 }
 
 //performed after split_inputs and crossover filters in pipeline
-fn combine_inputs(crossover_channels: &CrossoverChannels, speakers: &[Speaker]) -> Option<Mixer> {
+fn combine_inputs(crossover_channels: &CrossoverChannels, speakers: &[Speaker]) -> Mixer {
     let SpeakerCounts {
         speakers_exclude_sub,
         input_subwoofers,
         output_subwoofers,
-        index_of_input_subwoofer,
     } = get_speaker_counts(&speakers);
-
-    let index_of_input_subwoofer = index_of_input_subwoofer?;
 
     let channels = ChannelCount {
         num_in_channel: speakers_exclude_sub * 2 + input_subwoofers, //split_input.channels.num_out_channel,
@@ -286,7 +265,7 @@ fn combine_inputs(crossover_channels: &CrossoverChannels, speakers: &[Speaker]) 
                     inverted: false,
                 })
                 .chain(std::iter::once(Source {
-                    channel: index_of_input_subwoofer,
+                    channel: channels.num_in_channel - 1, //source is last index of previous mixer
                     gain: 0,
                     inverted: false,
                 }))
@@ -315,7 +294,7 @@ fn combine_inputs(crossover_channels: &CrossoverChannels, speakers: &[Speaker]) 
         )
         .collect();
 
-    return Some(Mixer { channels, mapping });
+    Mixer { channels, mapping }
 }
 
 fn create_output_filters(
@@ -368,7 +347,7 @@ fn create_output_filters(
 }
 
 fn create_per_speaker_pipeline(speakers: &[Speaker], filters: &[Filter]) -> Vec<Pipeline> {
-    //TODO consider doing this one time and passing to various areas for consistency
+    //TODO consider doing this one time and passing to eg the Filter creation for peq index consistency
     let mut hold_filters: HashMap<&String, Vec<(usize, &Filter)>> = HashMap::new();
     for (index, filter) in filters.iter().enumerate() {
         hold_filters
@@ -420,13 +399,7 @@ fn create_pipeline(
         crossover_channels
             .speaker_channels
             .iter()
-            .zip(
-                speakers
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, v)| !v.is_subwoofer)
-                    .map(|(_, s)| s),
-            )
+            .zip(speakers.iter().filter(|v| !v.is_subwoofer))
             .map(|(source_index, s)| {
                 Pipeline::Filter(PipelineFilter {
                     pipeline_type: PipelineType::Filter,
@@ -439,13 +412,7 @@ fn create_pipeline(
         crossover_channels
             .subwoofer_channels
             .iter()
-            .zip(
-                speakers
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, v)| !v.is_subwoofer)
-                    .map(|(_, s)| s),
-            )
+            .zip(speakers.iter().filter(|v| !v.is_subwoofer))
             .map(|(source_index, s)| {
                 Pipeline::Filter(PipelineFilter {
                     pipeline_type: PipelineType::Filter,
@@ -464,7 +431,7 @@ fn create_pipeline(
             channel: i,
             names: hold_filters
                 .get(&s.speaker)
-                .unwrap() //tODO yuck
+                .unwrap_or(&vec![])
                 .iter()
                 .map(|(index, f)| peq_filter_name(&s.speaker, *index))
                 .chain(std::iter::once(delay_filter_name(&s.speaker)))
@@ -474,86 +441,6 @@ fn create_pipeline(
     }))
     .collect()
 }
-
-//assumption is input is x.1, with the .1 coming at the end.
-// So 5.1 has 5 "normal" speakers (indeces 1 through 4) and 1 subwoofer with index 5.
-/*impl Mixer {
-    fn init(speakers: &[Speaker]) -> Self {
-        let num_output_subwoofers = speakers
-            .iter()
-            .enumerate()
-            .filter(|(_, s)| s.is_subwoofer)
-            .map(|(i, _)| i)
-            .count();
-        let num_speakers: usize = speakers.len();
-        let num_non_sub_channels = num_speakers - num_output_subwoofers;
-
-        //if no output subwoofers, don't worry about input subwoofers
-        let num_input_channels = num_non_sub_channels
-            + if num_output_subwoofers > 0 {
-                NUM_INPUT_SUBWOOFERS
-            } else {
-                0
-            };
-
-        Self {
-            channels: ChannelCount {
-                num_in_channel: num_input_channels,
-                num_out_channel: num_speakers,
-            },
-            mapping: speakers
-                .iter()
-                .enumerate()
-                .filter(|(_, v)| !v.is_subwoofer) //(0..num_non_sub_channels)
-                .map(|(i, v)| Mapping {
-                    //input to output mapping
-                    dest: i,
-                    sources: vec![Source {
-                        channel: i,
-                        gain: v.gain,
-                        inverted: false,
-                    }],
-                })
-                .chain(
-                    speakers
-                        .iter()
-                        .enumerate()
-                        .filter(|(_, v)| v.is_subwoofer) //(0..num_non_sub_channels)
-                        .map(|(i, v)| Mapping {
-                            //input to output mapping
-                            dest: i,
-                            sources: vec![Source {
-                                channel: num_non_sub_channels, //only one input sub channel
-                                gain: v.gain,
-                                inverted: false,
-                            }],
-                        }),
-                )
-                .chain(
-                    //crossover
-                    speakers
-                        .iter()
-                        .enumerate()
-                        .filter(|(_, v)| v.is_subwoofer) //(0..num_non_sub_channels)
-                        .map(|(sub_index, sub)| Mapping {
-                            //input to output mapping
-                            dest: sub_index,
-                            sources: speakers
-                                .iter()
-                                .enumerate()
-                                .filter(|(_, v)| !v.is_subwoofer)
-                                .map(|(speaker_index, _)| Source {
-                                    channel: speaker_index,
-                                    gain: sub.gain,
-                                    inverted: false,
-                                })
-                                .collect(),
-                        }),
-                )
-                .collect(),
-        }
-    }
-}*/
 
 /**End Mixers */
 
@@ -724,59 +611,7 @@ fn split_mixer_name() -> String {
 fn combine_mixer_name() -> String {
     "combine_sub".to_string()
 }
-/*
-fn create_pipeline(speakers: &[Speaker], filters: &[Filter]) -> Vec<Pipeline> {
-    let mut hold_filters: HashMap<&String, Vec<(usize, &Filter)>> = HashMap::new();
-    for (index, filter) in filters.iter().enumerate() {
-        hold_filters
-            .entry(&filter.speaker)
-            .and_modify(|v| v.push((index, filter)))
-            .or_insert(vec![(index, filter)]);
-    }
 
-    speakers
-        .iter()
-        .enumerate()
-        .map(|(i, s)| {
-            Pipeline::Filter(PipelineFilter {
-                pipeline_type: PipelineType::Filter,
-                channel: i,
-                names: vec![delay_filter_name(&s.speaker)],
-            })
-        })
-        .chain(
-            speakers
-                .iter()
-                .enumerate()
-                .filter(|(_, s)| !s.is_subwoofer)
-                .map(|(i, s)| {
-                    Pipeline::Filter(PipelineFilter {
-                        pipeline_type: PipelineType::Filter,
-                        channel: i,
-                        names: vec![crossover_filter_name(&s.speaker)],
-                    })
-                }),
-        )
-        .chain(
-            vec![Pipeline::Mixer(PipelineMixer {
-                pipeline_type: PipelineType::Mixer,
-                name: subwoofer_mixer_name(),
-            })]
-            .into_iter(),
-        )
-        .chain(hold_filters.iter().map(|(key, v)| {
-            Pipeline::Filter(PipelineFilter {
-                pipeline_type: PipelineType::Filter,
-                channel: speakers.iter().position(|s| &s.speaker == *key).unwrap(),
-                names: v
-                    .iter()
-                    .map(|(i, f)| peq_filter_name(&f.speaker, *i))
-                    .collect(),
-            })
-        }))
-        .collect()
-}
-*/
 /**end pipeline */
 
 #[derive(Serialize)]
@@ -787,15 +622,23 @@ struct CamillaConfig {
     pipeline: Vec<Pipeline>,
 }
 
+//this is used purely to store state and pass to mixer and filter creators
+struct ConfigurationMapping {
+    peq_filters: HashMap<String, SpeakerAdjust>,
+}
+
 /// THIS NEEDS TO BE REFACTORED
+/// how to handle WITH subs but no crossover?  Will need a mix only for the sub channel (split source sub into two)
 fn convert_processor_settings_to_camilla(
     settings: &ProcessorSettings,
 ) -> Result<String, json::serde_json::Error> {
+    //let configuration_mapping=ConfigurationMapping
+
     let split_mixer = split_inputs(&settings.speakers);
     let output_filters = create_output_filters(&settings.speakers, &settings.filters);
     match split_mixer {
         Some((mixer, crossover_channels)) => {
-            let combine_mixer = combine_inputs(&crossover_channels, &settings.speakers).unwrap(); //TODO yuck
+            let combine_mixer = combine_inputs(&crossover_channels, &settings.speakers);
             let mixers: HashMap<String, Mixer> = HashMap::from_iter(
                 vec![
                     (split_mixer_name(), mixer),
@@ -896,7 +739,7 @@ async fn write_configuration(
         .map_err(|e| BadRequest(Some(e.to_string())))?;
 
     println!("json: {}", config);
-    let (mut socket, response) =
+    let (mut socket, _response) =
         connect(Url::parse("ws://127.0.0.1:1234").unwrap()).expect("Can't connect");
     socket
         .send(Message::Text(
@@ -954,12 +797,13 @@ fn rocket() -> _ {
 
 #[cfg(test)]
 mod tests {
+    use crate::combine_inputs;
     use crate::convert_processor_settings_to_camilla;
     use crate::create_pipeline;
     use crate::get_speaker_counts;
     use crate::split_inputs;
+    use crate::CrossoverChannels;
     use crate::Filter;
-    use crate::Mixer;
     use crate::ProcessorSettings;
     use crate::Speaker;
     #[test]
@@ -998,7 +842,6 @@ mod tests {
         assert!(result.speakers_exclude_sub == 4);
         assert!(result.input_subwoofers == 0);
         assert!(result.output_subwoofers == 0);
-        assert!(result.index_of_input_subwoofer == None);
     }
     #[test]
     fn test_speaker_counts_one_sub() {
@@ -1043,7 +886,6 @@ mod tests {
         assert!(result.speakers_exclude_sub == 4);
         assert!(result.input_subwoofers == 1);
         assert!(result.output_subwoofers == 1);
-        assert!(result.index_of_input_subwoofer == Some(4));
     }
     #[test]
     fn test_speaker_counts_two_sub() {
@@ -1095,7 +937,6 @@ mod tests {
         assert!(result.speakers_exclude_sub == 4);
         assert!(result.input_subwoofers == 1);
         assert!(result.output_subwoofers == 2);
-        assert!(result.index_of_input_subwoofer == Some(4));
     }
 
     #[test]
@@ -1172,8 +1013,35 @@ mod tests {
                 gain: 2,
             },
         ];
-        let result = split_inputs(&speakers);
-        assert!(result.unwrap().0.mapping.len() == 9);
+        let result = split_inputs(&speakers).unwrap();
+        assert!(result.0.mapping.len() == 9);
+
+        assert!(result.0.mapping[0].dest == 0);
+        assert!(result.0.mapping[0].sources[0].channel == 0);
+
+        assert!(result.0.mapping[1].dest == 1);
+        assert!(result.0.mapping[1].sources[0].channel == 0);
+
+        assert!(result.0.mapping[2].dest == 2);
+        assert!(result.0.mapping[2].sources[0].channel == 1);
+
+        assert!(result.0.mapping[3].dest == 3);
+        assert!(result.0.mapping[3].sources[0].channel == 1);
+
+        assert!(result.0.mapping[4].dest == 4);
+        assert!(result.0.mapping[4].sources[0].channel == 2);
+
+        assert!(result.0.mapping[5].dest == 5);
+        assert!(result.0.mapping[5].sources[0].channel == 2);
+
+        assert!(result.0.mapping[6].dest == 6);
+        assert!(result.0.mapping[6].sources[0].channel == 3);
+
+        assert!(result.0.mapping[7].dest == 7);
+        assert!(result.0.mapping[7].sources[0].channel == 3);
+
+        assert!(result.0.mapping[8].dest == 8);
+        assert!(result.0.mapping[8].sources[0].channel == 4);
     }
     #[test]
     fn test_init_mixer_two_sub() {
@@ -1221,64 +1089,39 @@ mod tests {
                 gain: 2,
             },
         ];
-        let result = split_inputs(&speakers);
-        assert!(result.unwrap().mapping.len() == 9); //does not care how many output subs there are
+        let result = split_inputs(&speakers).unwrap();
+        assert!(result.0.mapping.len() == 9);
+
+        assert!(result.0.mapping[0].dest == 0);
+        assert!(result.0.mapping[0].sources[0].channel == 0);
+
+        assert!(result.0.mapping[1].dest == 1);
+        assert!(result.0.mapping[1].sources[0].channel == 0);
+
+        assert!(result.0.mapping[2].dest == 2);
+        assert!(result.0.mapping[2].sources[0].channel == 1);
+
+        assert!(result.0.mapping[3].dest == 3);
+        assert!(result.0.mapping[3].sources[0].channel == 1);
+
+        assert!(result.0.mapping[4].dest == 4);
+        assert!(result.0.mapping[4].sources[0].channel == 2);
+
+        assert!(result.0.mapping[5].dest == 5);
+        assert!(result.0.mapping[5].sources[0].channel == 2);
+
+        assert!(result.0.mapping[6].dest == 6);
+        assert!(result.0.mapping[6].sources[0].channel == 3);
+
+        assert!(result.0.mapping[7].dest == 7);
+        assert!(result.0.mapping[7].sources[0].channel == 3);
+
+        assert!(result.0.mapping[8].dest == 8);
+        assert!(result.0.mapping[8].sources[0].channel == 4);
     }
 
     #[test]
-    fn check_mixer_4_speakers_0_sub() {
-        let speakers: Vec<Speaker> = vec![
-            Speaker {
-                speaker: "l".to_string(),
-                crossover: 100,
-                delay: 10,
-                is_subwoofer: false,
-                gain: 2,
-            },
-            Speaker {
-                speaker: "r".to_string(),
-                crossover: 100,
-                delay: 10,
-                is_subwoofer: false,
-                gain: 2,
-            },
-            Speaker {
-                speaker: "sl".to_string(),
-                crossover: 100,
-                delay: 10,
-                is_subwoofer: false,
-                gain: 2,
-            },
-            Speaker {
-                speaker: "sr".to_string(),
-                crossover: 100,
-                delay: 10,
-                is_subwoofer: false,
-                gain: 2,
-            },
-        ];
-        let mix = Mixer::init(&speakers);
-        assert!(mix.channels.num_in_channel == 4);
-        assert!(mix.channels.num_out_channel == 4);
-        assert!(mix.mapping.len() == 4);
-        assert!(mix.mapping[0].dest == 0);
-        assert!(mix.mapping[0].sources.len() == 1);
-        assert!(mix.mapping[0].sources[0].channel == 0);
-
-        assert!(mix.mapping[1].dest == 1);
-        assert!(mix.mapping[1].sources.len() == 1);
-        assert!(mix.mapping[1].sources[0].channel == 1);
-
-        assert!(mix.mapping[2].dest == 2);
-        assert!(mix.mapping[2].sources.len() == 1);
-        assert!(mix.mapping[2].sources[0].channel == 2);
-
-        assert!(mix.mapping[3].dest == 3);
-        assert!(mix.mapping[3].sources.len() == 1);
-        assert!(mix.mapping[3].sources[0].channel == 3);
-    }
-    #[test]
-    fn check_mixer_6_speakers_1_sub() {
+    fn check_final_mixer_6_speakers_1_sub() {
         let speakers: Vec<Speaker> = vec![
             Speaker {
                 speaker: "l".to_string(),
@@ -1323,46 +1166,42 @@ mod tests {
                 gain: 2,
             },
         ];
-        let mix = Mixer::init(&speakers);
-        assert!(mix.channels.num_in_channel == 6);
-        assert!(mix.channels.num_out_channel == 6);
-        assert!(mix.mapping.len() == 7);
-        assert!(mix.mapping[0].dest == 0);
-        assert!(mix.mapping[0].sources.len() == 1);
-        assert!(mix.mapping[0].sources[0].channel == 0);
+        let mix = combine_inputs(
+            &CrossoverChannels {
+                speaker_channels: vec![0, 2, 4, 6, 8],
+                subwoofer_channels: vec![1, 3, 5, 7, 9],
+            },
+            &speakers,
+        );
+        assert!(mix.channels.num_in_channel == 11); //2*(6-1)+1 sub passthrough
+        assert!(mix.channels.num_out_channel == 6); //total speaker count
 
-        assert!(mix.mapping[1].dest == 1);
+        assert!(mix.mapping.len() == 6);
+        assert!(mix.mapping[0].dest == 5); //last channel is sub channel
+        assert!(mix.mapping[0].sources.len() == 6); //6 speakers feeding subwoofer inluding sub passthrough
+
+        assert!(mix.mapping[1].dest == 0);
         assert!(mix.mapping[1].sources.len() == 1);
-        assert!(mix.mapping[1].sources[0].channel == 1);
+        assert!(mix.mapping[1].sources[0].channel == 0);
 
-        assert!(mix.mapping[2].dest == 2);
+        assert!(mix.mapping[2].dest == 1);
         assert!(mix.mapping[2].sources.len() == 1);
         assert!(mix.mapping[2].sources[0].channel == 2);
 
-        assert!(mix.mapping[3].dest == 3);
+        assert!(mix.mapping[3].dest == 2);
         assert!(mix.mapping[3].sources.len() == 1);
-        assert!(mix.mapping[3].sources[0].channel == 3);
+        assert!(mix.mapping[3].sources[0].channel == 4);
 
-        assert!(mix.mapping[4].dest == 4);
+        assert!(mix.mapping[4].dest == 3);
         assert!(mix.mapping[4].sources.len() == 1);
-        assert!(mix.mapping[4].sources[0].channel == 4);
+        assert!(mix.mapping[4].sources[0].channel == 6);
 
-        //sub mapped to sub
-        assert!(mix.mapping[5].dest == 5);
+        assert!(mix.mapping[5].dest == 4);
         assert!(mix.mapping[5].sources.len() == 1);
-        assert!(mix.mapping[5].sources[0].channel == 5);
-
-        //speakers mapped to sub (for crossover purpose)
-        assert!(mix.mapping[6].dest == 5);
-        assert!(mix.mapping[6].sources.len() == 5);
-        assert!(mix.mapping[6].sources[0].channel == 0);
-        assert!(mix.mapping[6].sources[1].channel == 1);
-        assert!(mix.mapping[6].sources[2].channel == 2);
-        assert!(mix.mapping[6].sources[3].channel == 3);
-        assert!(mix.mapping[6].sources[4].channel == 4);
+        assert!(mix.mapping[5].sources[0].channel == 8);
     }
     #[test]
-    fn check_mixer_7_speakers_2_sub() {
+    fn check_final_mixer_7_speakers_2_sub() {
         let speakers: Vec<Speaker> = vec![
             Speaker {
                 speaker: "l".to_string(),
@@ -1414,56 +1253,43 @@ mod tests {
                 gain: 2,
             },
         ];
-        let mix = Mixer::init(&speakers);
-        assert!(mix.channels.num_in_channel == 6);
-        assert!(mix.channels.num_out_channel == 7);
-        assert!(mix.mapping.len() == 9);
-        assert!(mix.mapping[0].dest == 0);
-        assert!(mix.mapping[0].sources.len() == 1);
-        assert!(mix.mapping[0].sources[0].channel == 0);
 
-        assert!(mix.mapping[1].dest == 1);
-        assert!(mix.mapping[1].sources.len() == 1);
-        assert!(mix.mapping[1].sources[0].channel == 1);
+        let mix = combine_inputs(
+            &CrossoverChannels {
+                speaker_channels: vec![0, 2, 4, 6, 8],
+                subwoofer_channels: vec![1, 3, 5, 7, 9],
+            },
+            &speakers,
+        );
+        assert!(mix.channels.num_in_channel == 11); //2*(6-1)+1 sub input
+        assert!(mix.channels.num_out_channel == 7); //total speaker count
 
-        assert!(mix.mapping[2].dest == 2);
+        assert!(mix.mapping.len() == 7);
+        assert!(mix.mapping[0].dest == 5); //last two channels are sub channel, though this isn't strictly necessary
+        assert!(mix.mapping[0].sources.len() == 6); //6 input speakers feeding subwoofer including sub passthrough
+
+        assert!(mix.mapping[1].dest == 6); //last two channels are sub channel
+        assert!(mix.mapping[1].sources.len() == 6); //6 input speakers feeding subwoofer including sub passthrough
+
+        assert!(mix.mapping[2].dest == 0);
         assert!(mix.mapping[2].sources.len() == 1);
-        assert!(mix.mapping[2].sources[0].channel == 2);
+        assert!(mix.mapping[2].sources[0].channel == 0);
 
-        assert!(mix.mapping[3].dest == 3);
+        assert!(mix.mapping[3].dest == 1);
         assert!(mix.mapping[3].sources.len() == 1);
-        assert!(mix.mapping[3].sources[0].channel == 3);
+        assert!(mix.mapping[3].sources[0].channel == 2);
 
-        assert!(mix.mapping[4].dest == 4);
+        assert!(mix.mapping[4].dest == 2);
         assert!(mix.mapping[4].sources.len() == 1);
         assert!(mix.mapping[4].sources[0].channel == 4);
 
-        //sub mapped to sub 1
-        assert!(mix.mapping[5].dest == 5);
+        assert!(mix.mapping[5].dest == 3);
         assert!(mix.mapping[5].sources.len() == 1);
-        assert!(mix.mapping[5].sources[0].channel == 5);
+        assert!(mix.mapping[5].sources[0].channel == 6);
 
-        //sub mapped to sub 2
-        assert!(mix.mapping[6].dest == 6);
+        assert!(mix.mapping[6].dest == 4);
         assert!(mix.mapping[6].sources.len() == 1);
-        assert!(mix.mapping[6].sources[0].channel == 5);
-
-        //speakers mapped to subs (for crossover purpose)
-        assert!(mix.mapping[7].dest == 5);
-        assert!(mix.mapping[7].sources.len() == 5);
-        assert!(mix.mapping[7].sources[0].channel == 0);
-        assert!(mix.mapping[7].sources[1].channel == 1);
-        assert!(mix.mapping[7].sources[2].channel == 2);
-        assert!(mix.mapping[7].sources[3].channel == 3);
-        assert!(mix.mapping[7].sources[4].channel == 4);
-
-        assert!(mix.mapping[8].dest == 6);
-        assert!(mix.mapping[8].sources.len() == 5);
-        assert!(mix.mapping[8].sources[0].channel == 0);
-        assert!(mix.mapping[8].sources[1].channel == 1);
-        assert!(mix.mapping[8].sources[2].channel == 2);
-        assert!(mix.mapping[8].sources[3].channel == 3);
-        assert!(mix.mapping[8].sources[4].channel == 4);
+        assert!(mix.mapping[6].sources[0].channel == 8);
     }
 
     #[test]
@@ -1494,28 +1320,28 @@ mod tests {
                     speaker: "l".to_string(),
                     crossover: 80,
                     delay: 10,
-                    gain: 1, //ugh, I forgot about gains...
+                    gain: 1,
                     is_subwoofer: false,
                 },
                 Speaker {
                     speaker: "c".to_string(),
                     crossover: 80,
                     delay: 10,
-                    gain: 1, //ugh, I forgot about gains...
+                    gain: 1,
                     is_subwoofer: false,
                 },
                 Speaker {
                     speaker: "r".to_string(),
                     crossover: 80,
                     delay: 10,
-                    gain: 1, //ugh, I forgot about gains...
+                    gain: 1,
                     is_subwoofer: false,
                 },
                 Speaker {
                     speaker: "sub1".to_string(),
                     crossover: 80,
                     delay: 10,
-                    gain: 1, //ugh, I forgot about gains...
+                    gain: 1,
                     is_subwoofer: true,
                 },
             ],
@@ -1573,7 +1399,16 @@ mod tests {
                 speaker: "l".to_string(),
             },
         ];
-        let result = create_pipeline(&speakers, &filters);
-        assert!(result.len() == 9); //only have peq for left speaker
+        let result = create_pipeline(
+            "myinitmixer".to_string(),
+            "myfinalmixer".to_string(),
+            &CrossoverChannels {
+                speaker_channels: vec![0, 1, 2],
+                subwoofer_channels: vec![3, 4, 5],
+            },
+            &speakers,
+            &filters,
+        );
+        assert!(result.len() == 12); //2*(4-1) for cxfilters+2 for mixer+4 for each speaker filters
     }
 }
