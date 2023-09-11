@@ -29,20 +29,21 @@ struct Settings(sqlx::SqlitePool);
 async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
     if let Some(db) = Settings::fetch(&rocket) {
         let _1=sqlx::query(
-            "CREATE TABLE if not exists filters (version text, filter_index integer, speaker text, freq integer, gain integer, q real, PRIMARY KEY (version, filter_index, speaker));",
+            "CREATE TABLE if not exists filters (version text not null, filter_index integer not null, speaker text not null, freq integer not null, gain real not null, q real not null, PRIMARY KEY (version, filter_index, speaker));",
         )
         .execute(&db.0)
         .await;
 
         let _2=sqlx::query(
-        "CREATE TABLE if not exists speakers (version text, speaker text, crossover integer, delay integer, gain integer, is_subwoofer integer, PRIMARY KEY (version, speaker));",
+        "CREATE TABLE if not exists speakers (version text not null, speaker text not null, crossover integer, delay integer not null, gain real not null, is_subwoofer integer not null, PRIMARY KEY (version, speaker));",
         )
         .execute(&db.0)
         .await;
 
-        let _3 = sqlx::query("CREATE TABLE if not exists versions (version text PRIMARY KEY);")
-            .execute(&db.0)
-            .await;
+        let _3 =
+            sqlx::query("CREATE TABLE if not exists versions (version text not null PRIMARY KEY);")
+                .execute(&db.0)
+                .await;
 
         Ok(rocket)
     } else {
