@@ -4,11 +4,11 @@ use chrono::Utc;
 use rocket::fairing::{self, AdHoc};
 use rocket::response::status::BadRequest;
 use rocket::serde::{json, json::Json, Serialize};
+use rocket::State;
 use rocket::{Build, Rocket};
 use rocket_db_pools::sqlx::{self};
 use rocket_db_pools::{Connection, Database};
 use std::collections::BTreeMap;
-
 mod filters;
 mod mixers;
 mod pipeline;
@@ -64,7 +64,6 @@ struct ConfigurationMapping<'a> {
     speaker_counts: SpeakerCounts,
 }
 
-/// how to handle WITH subs but no crossover?  Will need a mix only for the sub channel (split source sub into two)
 fn convert_processor_settings_to_camilla(
     settings: &ProcessorSettings,
 ) -> Result<String, json::serde_json::Error> {
@@ -136,23 +135,31 @@ async fn config_latest(
 
 #[get("/config/<version>")]
 async fn config_version(
-    mut db: Connection<Settings>,
+    db: Connection<Settings>,
     version: &str,
 ) -> Result<Json<ProcessorSettings>, BadRequest<String>> {
+    get_version_from_db(db, version)
+        .await
+        .map(|v| Json(v))
+        .map_err(|e| BadRequest(Some(e.to_string())))
+}
+
+async fn get_version_from_db(
+    mut db: Connection<Settings>,
+    version: &str,
+) -> Result<ProcessorSettings, sqlx::Error> {
     let filters =
         sqlx::query_as::<_, Filter>("SELECT speaker, freq, gain, q from filters where version=?")
             .bind(version)
             .fetch_all(&mut *db)
-            .await
-            .map_err(|e| BadRequest(Some(e.to_string())))?;
+            .await?;
     let speakers = sqlx::query_as::<_, Speaker>(
         "SELECT speaker, crossover, delay, gain, is_subwoofer from speakers where version=?",
     )
     .bind(version)
     .fetch_all(&mut *db)
-    .await
-    .map_err(|e| BadRequest(Some(e.to_string())))?;
-    Ok(Json(ProcessorSettings { filters, speakers }))
+    .await?;
+    Ok(ProcessorSettings { filters, speakers })
 }
 
 use tungstenite::{connect, Message};
@@ -165,29 +172,36 @@ struct SetConfig {
     set_config_json: String,
 }
 
+#[post("/config/apply/<version>", format = "application/json")]
+async fn apply_config_version(
+    db: Connection<Settings>,
+    version: &str,
+    camilla_dsp_url: &State<String>,
+) -> Result<(), BadRequest<String>> {
+    let settings = get_version_from_db(db, version)
+        .await
+        .map_err(|e| BadRequest(Some(e.to_string())))?;
+    let config = convert_processor_settings_to_camilla(&settings)
+        .map_err(|e| BadRequest(Some(e.to_string())))?;
+
+    let ws_url = Url::parse(camilla_dsp_url).map_err(|e| BadRequest(Some(e.to_string())))?;
+    let (mut socket, _response) = connect(ws_url).map_err(|e| BadRequest(Some(e.to_string())))?;
+    let config_as_json = json::to_string(&SetConfig {
+        set_config_json: config,
+    })
+    .map_err(|e| BadRequest(Some(e.to_string())))?;
+    socket
+        .send(Message::Text(config_as_json))
+        .map_err(|e| BadRequest(Some(e.to_string())))?;
+    Ok(())
+}
+
 #[put("/config", format = "application/json", data = "<settings>")]
 async fn write_configuration(
     mut db: Connection<Settings>,
     settings: Json<ProcessorSettings>,
-) -> Result<(), BadRequest<String>> {
+) -> Result<String, BadRequest<String>> {
     let version = Utc::now().to_string();
-
-    let config = convert_processor_settings_to_camilla(&settings)
-        .map_err(|e| BadRequest(Some(e.to_string())))?;
-
-    println!("json: {}", config);
-    let (mut socket, _response) =
-        connect(Url::parse("ws://127.0.0.1:1234").unwrap()).expect("Can't connect");
-    socket
-        .send(Message::Text(
-            json::to_string(&SetConfig {
-                set_config_json: config,
-            })
-            .unwrap(),
-        )) //SetConfigJson
-        .unwrap();
-
-    //write config to camilla here
     let _ = sqlx::query("INSERT INTO versions (version) VALUES (?)")
         .bind(&version)
         .execute(&mut *db)
@@ -218,17 +232,26 @@ async fn write_configuration(
         .execute(&mut *db)
         .await;
     }
-    Ok(())
+    Ok(version)
 }
 
 #[launch]
 fn rocket() -> _ {
+    let mut args = std::env::args();
+    args.next(); //first item is the app name, skip it
+    let camilla_dsp_url = args.next().unwrap_or("ws://127.0.0.1:1234".to_string());
     rocket::build()
+        .manage(camilla_dsp_url)
         .attach(Settings::init())
         .attach(AdHoc::try_on_ignite("DB Migrations", run_migrations))
         .mount(
             "/",
-            routes![config_latest, config_version, write_configuration],
+            routes![
+                config_latest,
+                config_version,
+                write_configuration,
+                apply_config_version
+            ],
         )
 }
 
