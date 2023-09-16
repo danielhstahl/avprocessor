@@ -121,6 +121,23 @@ fn convert_processor_settings_to_camilla(
     }
 }
 
+#[derive(Serialize, sqlx::FromRow)]
+#[serde(crate = "rocket::serde", rename_all = "camelCase")]
+struct Version {
+    version: String,
+}
+#[get("/versions")]
+async fn get_versions(
+    mut db: Connection<Settings>,
+) -> Result<Json<Vec<Version>>, BadRequest<String>> {
+    let versions = sqlx::query_as::<_, Version>("SELECT version FROM versions")
+        .fetch_all(&mut *db)
+        .await
+        .map_err(|e| BadRequest(Some(e.to_string())))?;
+
+    Ok(Json(versions))
+}
+
 #[get("/config/latest")]
 async fn config_latest(
     mut db: Connection<Settings>,
@@ -236,6 +253,26 @@ async fn write_configuration(
     Ok(version)
 }
 
+#[delete("/config/<version>")]
+async fn delete_configuration(
+    mut db: Connection<Settings>,
+    version: &str,
+) -> Result<String, BadRequest<String>> {
+    let _ = sqlx::query("DELETE FROM versions WHERE version=?")
+        .bind(&version)
+        .execute(&mut *db)
+        .await;
+    let _ = sqlx::query("DELETE FROM filters WHERE version=?")
+        .bind(&version)
+        .execute(&mut *db)
+        .await;
+    let _ = sqlx::query("DELETE FROM speakers WHERE version=?")
+        .bind(&version)
+        .execute(&mut *db)
+        .await;
+    Ok(version.to_string())
+}
+
 #[launch]
 fn rocket() -> _ {
     let mut args = std::env::args();
@@ -251,7 +288,9 @@ fn rocket() -> _ {
                 config_latest,
                 config_version,
                 write_configuration,
-                apply_config_version
+                apply_config_version,
+                delete_configuration,
+                get_versions
             ],
         )
 }

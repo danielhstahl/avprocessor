@@ -7,9 +7,8 @@ pub struct ProcessorSettings {
     pub speakers: Vec<Speaker>,
 }
 
-#[derive(Deserialize, Serialize)]
-#[serde(crate = "rocket::serde")]
-#[derive(sqlx::FromRow)]
+#[derive(Deserialize, Serialize, sqlx::FromRow)]
+#[serde(crate = "rocket::serde", rename_all = "camelCase")]
 pub struct Speaker {
     pub speaker: String,
     pub crossover: Option<i32>,
@@ -18,9 +17,8 @@ pub struct Speaker {
     pub is_subwoofer: bool,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, sqlx::FromRow)]
 #[serde(crate = "rocket::serde")]
-#[derive(sqlx::FromRow)]
 pub struct Filter {
     pub freq: i32,
     pub gain: f32,
