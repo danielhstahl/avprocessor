@@ -33,7 +33,7 @@ const DelayAction = ({ speaker, updateSpeaker }: ActionProps) => {
         <Text>Delay:</Text>
         <InputNumber
             value={speaker.delay}
-            onChange={v => v && updateSpeaker({ ...speaker, delay: v })}
+            onChange={v => v !== null && updateSpeaker({ ...speaker, delay: v })}
             min={0}
             max={1000}
             step="0.5"
@@ -47,7 +47,7 @@ const TrimAction = ({ speaker, updateSpeaker }: ActionProps) => {
         <Text>Trim:</Text>
         <InputNumber
             value={speaker.gain}
-            onChange={v => v && updateSpeaker({ ...speaker, gain: v })}
+            onChange={v => v !== null && updateSpeaker({ ...speaker, gain: v })}
             min={-10}
             max={10}
             {...floatFormatter("db")}

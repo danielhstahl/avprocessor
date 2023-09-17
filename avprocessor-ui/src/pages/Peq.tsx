@@ -1,5 +1,5 @@
 import { List, Space, Typography, InputNumber, Card, Button, Row, Col } from 'antd';
-import { DeleteOutlined } from '@ant-design/icons'
+import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import React, { useContext } from 'react';
 import { Filter, FilterContext, FilterWithIndex } from '../state/filter'
 import { floatFormatter, intFormatter } from '../utils/inputParsers';
@@ -110,7 +110,7 @@ const FreqAction = ({ filter, updateFilter }: ActionProps) => {
         <Text>Frequency:</Text>
         <InputNumber
             value={filter.freq}
-            onChange={v => v && updateFilter({ ...filter, freq: v })}
+            onChange={v => v !== null && updateFilter({ ...filter, freq: v })}
             min={0}
             max={20000}
             {...intFormatter("hz")}
@@ -138,7 +138,7 @@ const QAction = ({ filter, updateFilter }: ActionProps) => {
         <InputNumber
             value={filter.q}
             step="0.2"
-            onChange={v => v && updateFilter({ ...filter, q: v })}
+            onChange={v => v !== null && updateFilter({ ...filter, q: v })}
             min={0}
             max={10}
         />
@@ -179,28 +179,22 @@ const FiltersComponent: React.FC = () => {
     return <Space direction="vertical" size="middle" style={{ display: 'flex' }}>
         {Object.entries(speakerFilters).map(([speaker, filters]) => {
             const results = constructVisualArray(filters)
-            return <Card title={speaker} bordered={false}
-                actions={[
-                    <Button onClick={() => addFilter(speaker)}>Add Filter</Button>,
-                ]}
-            >   <Row style={{ minHeight: 100 }}>
-                    <Col md={24} lg={15}>
+            return <Card title={speaker} bordered={false}>
+                <Row style={{ minHeight: 100 }}>
+                    <Col md={24} lg={13} >
                         <List
                             itemLayout="horizontal"
                             dataSource={filters}
                             renderItem={(filter: FilterWithIndex) => (
-                                <List.Item
-                                    actions={[
-                                        <FreqAction filter={filter} updateFilter={updateFilter} />,
-                                        <GainAction filter={filter} updateFilter={updateFilter} />,
-                                        <QAction filter={filter} updateFilter={updateFilter} />,
-                                        <DeleteOutlined onClick={() => removeFilter(filter)} />
-                                    ]}
-                                ></List.Item>
+                                <List.Item><FreqAction filter={filter} updateFilter={updateFilter} />
+                                    <GainAction filter={filter} updateFilter={updateFilter} />
+                                    <QAction filter={filter} updateFilter={updateFilter} />
+                                    <DeleteOutlined onClick={() => removeFilter(filter)} /></List.Item>
                             )}
+                            footer={<Button icon={<PlusOutlined />} onClick={() => addFilter(speaker)}>Add Filter</Button>}
                         />
                     </Col>
-                    <Col xs={0} md={0} lg={9}>
+                    <Col xs={0} md={0} lg={11} style={{ paddingLeft: "10%" }}>
                         <PeqChartChartJS labels={results.freq} values={results.freqResponse} />
                     </Col>
                 </Row>
