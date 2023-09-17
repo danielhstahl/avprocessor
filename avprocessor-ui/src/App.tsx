@@ -43,7 +43,7 @@ const App: React.FC = () => {
   const versions = useRouteLoaderData(ROOT_ID) as Version[];
   const [version, setVersion] = useState(versions[versions.length - 1].version)
   const { setSpeakers, setSpeakerBase, speakerConfiguration } = useContext(SpeakerContext)
-  const { setFilters } = useContext(FilterContext)
+  const { setFilters, setFilterBase } = useContext(FilterContext)
 
   //todo, this is somewhat janky from a if then catch perspsective
   useEffect(() => {
@@ -52,13 +52,15 @@ const App: React.FC = () => {
     }).then(r => r.json()).then(({ speakers, filters }) => {
       if (speakers && speakers.length > 0) {
         setSpeakers(speakers)
+        setFilters(filters)
       }
       else {
         setSpeakerBase(speakerConfiguration)
+        setFilterBase(speakerConfiguration)
       }
-      setFilters(filters)
     }).finally(() => {
       setSpeakerBase(speakerConfiguration)
+      setFilterBase(speakerConfiguration)
     })
   }, [version])
 

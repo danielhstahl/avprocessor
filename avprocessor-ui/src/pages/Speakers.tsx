@@ -1,9 +1,11 @@
-import { Avatar, List, Select, Space, Typography, InputNumber } from 'antd';
+import { List, Select, Space, Typography, InputNumber } from 'antd';
 import { Speaker, SPEAKER_OPTIONS } from '../state/speaker'
 import { Switch } from 'antd';
-import React, { useState, useContext } from 'react';
+import React, { useContext } from 'react';
 import { SpeakerContext } from '../state/speaker'
 import { FilterContext } from '../state/filter'
+import { floatFormatter, intFormatter } from '../utils/inputParsers';
+
 const { Text } = Typography
 
 
@@ -21,6 +23,7 @@ const CrossoverAction = ({ speaker, updateSpeaker }: ActionProps) => {
             onChange={v => updateSpeaker({ ...speaker, crossover: v })}
             min={0}
             max={1000}
+            {...intFormatter("hz")}
         />
     </Space>
 }
@@ -28,23 +31,45 @@ const CrossoverAction = ({ speaker, updateSpeaker }: ActionProps) => {
 const DelayAction = ({ speaker, updateSpeaker }: ActionProps) => {
     return <Space direction="horizontal" size="middle" >
         <Text>Delay:</Text>
-        <InputNumber value={speaker.delay} onChange={v => v && updateSpeaker({ ...speaker, delay: v })} min={0} max={1000} />
+        <InputNumber
+            value={speaker.delay}
+            onChange={v => v && updateSpeaker({ ...speaker, delay: v })}
+            min={0}
+            max={1000}
+            step="0.5"
+            {...floatFormatter("ms")}
+        />
     </Space>
 }
 
 const TrimAction = ({ speaker, updateSpeaker }: ActionProps) => {
     return <Space direction="horizontal" size="middle" >
         <Text>Trim:</Text>
-        <InputNumber value={speaker.gain} onChange={v => v && updateSpeaker({ ...speaker, gain: v })} min={-10} max={10} />
+        <InputNumber
+            value={speaker.gain}
+            onChange={v => v && updateSpeaker({ ...speaker, gain: v })}
+            min={-10}
+            max={10}
+            {...floatFormatter("db")}
+        />
     </Space>
 }
 
 const SpeakerComponent: React.FC = () => {
     const { speakers, speakerConfiguration, setSpeakerBase, updateSpeaker } = useContext(SpeakerContext)
+    const { setFilterBase } = useContext(FilterContext)
     return <Space direction="vertical" size="middle" style={{ display: 'flex' }}>
         <Space direction="horizontal" size="middle" style={{ display: 'flex' }}>
             <Text strong>Select Speaker Layout</Text>
-            <Select value={speakerConfiguration} onChange={setSpeakerBase} options={SPEAKER_OPTIONS.map(({ label }) => ({ value: label, label }))} style={{ width: '100%' }} />
+            <Select
+                value={speakerConfiguration}
+                onChange={v => {
+                    setSpeakerBase(v)
+                    setFilterBase(v)
+                }}
+                options={SPEAKER_OPTIONS.map(({ label }) => ({ value: label, label }))}
+                style={{ width: '100%' }}
+            />
         </Space>
 
         <List
