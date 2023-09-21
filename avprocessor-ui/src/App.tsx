@@ -3,7 +3,6 @@ import { Layout, Menu, Select, Space, Typography } from 'antd';
 import { Outlet, useNavigate, useLocation, useRouteLoaderData } from "react-router-dom";
 import { ROOT_ID } from './utils/constants'
 import Speakers from './pages/Speakers'
-import Peq from './pages/Peq'
 import Advanced from './pages/Advanced'
 import Home from './pages/Home'
 import { SpeakerContext } from './state/speaker'
@@ -23,19 +22,13 @@ export const ADVANCED_ROUTE = "/prompt"
 export const MenuItems = [
   { key: "/", label: "Home", element: <Home /> },
   { key: SPEAKER_ROUTE, label: "Speaker Setup", element: <Speakers /> },
-  { key: PEQ_ROUTE, label: "Parameteric EQ", element: <Peq /> },
   { key: ADVANCED_ROUTE, label: "Advanced", element: <Advanced /> },
 ]
 
 type Version = {
   version: string
 }
-/*
-type LoaderResult = {
-  versions: Version[],
-  filters: Filter[],
-  speakers: Speaker[]
-}*/
+
 
 const App: React.FC = () => {
   const navigate = useNavigate();

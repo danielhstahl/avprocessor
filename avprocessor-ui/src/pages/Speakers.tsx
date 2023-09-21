@@ -1,63 +1,66 @@
-import { List, Select, Space, Typography, InputNumber } from 'antd';
+import { List, Select, Space, Typography, Card } from 'antd';
 import { Speaker, SPEAKER_OPTIONS } from '../state/speaker'
-import { Switch } from 'antd';
-import React, { useContext } from 'react';
+import React, { useContext, useState } from 'react';
 import { SpeakerContext } from '../state/speaker'
-import { FilterContext } from '../state/filter'
-import { floatFormatter, intFormatter } from '../utils/inputParsers';
-
+import { FilterContext, FilterWithIndex } from '../state/filter'
+import SpeakerRecord, { SpeakerProps } from '../components/Speakers'
+import PeqRecord, { PeqProps } from '../components/Peq'
 const { Text } = Typography
 
+const tabList = [
+    {
+        label: "Speaker",
+        key: "speaker"
+    },
+    {
+        label: "PEQ",
+        key: "peq"
+    }
+]
 
-type ActionProps = {
-    speaker: Speaker,
-    updateSpeaker: (speaker: Speaker) => void
-}
-const CrossoverAction = ({ speaker, updateSpeaker }: ActionProps) => {
-    return <Space direction="horizontal" size="middle" >
-        <Text>Crossover:</Text>
-        <Switch checked={speaker.crossover !== null} onChange={v => updateSpeaker({ ...speaker, crossover: v ? 0 : null })} />
-        <InputNumber
-            disabled={speaker.crossover === null}
-            value={speaker.crossover}
-            onChange={v => updateSpeaker({ ...speaker, crossover: v })}
-            min={0}
-            max={1000}
-            {...intFormatter("hz")}
-        />
-    </Space>
-}
-
-const DelayAction = ({ speaker, updateSpeaker }: ActionProps) => {
-    return <Space direction="horizontal" size="middle" >
-        <Text>Delay:</Text>
-        <InputNumber
-            value={speaker.delay}
-            onChange={v => v !== null && updateSpeaker({ ...speaker, delay: v })}
-            min={0}
-            max={1000}
-            step="0.5"
-            {...floatFormatter("ms")}
-        />
-    </Space>
+const SpeakerCard = ({
+    speaker,
+    filters,
+    updateFilter,
+    removeFilter,
+    updateSpeaker,
+    addFilter
+}: SpeakerProps & PeqProps) => {
+    const [activeKey, setActiveKey] = useState(tabList[0].key)
+    return <Card
+        style={{ width: '100%' }}
+        title={speaker.speaker}
+        tabList={tabList}
+        activeTabKey={activeKey}
+        onTabChange={setActiveKey}
+    >
+        {activeKey === "speaker" ?
+            <SpeakerRecord speaker={speaker} updateSpeaker={updateSpeaker} /> :
+            <PeqRecord
+                filters={filters}
+                updateFilter={updateFilter}
+                removeFilter={removeFilter}
+                addFilter={addFilter}
+            />
+        }
+    </Card>
 }
 
-const TrimAction = ({ speaker, updateSpeaker }: ActionProps) => {
-    return <Space direction="horizontal" size="middle" >
-        <Text>Trim:</Text>
-        <InputNumber
-            value={speaker.gain}
-            onChange={v => v !== null && updateSpeaker({ ...speaker, gain: v })}
-            min={-10}
-            max={10}
-            {...floatFormatter("db")}
-        />
-    </Space>
+type SpeakerFilter = Record<string, FilterWithIndex[]>
+const perSpeakerFilters: (filters: FilterWithIndex[]) => SpeakerFilter = (filters: FilterWithIndex[]) => {
+    return filters.reduce<SpeakerFilter>((agg, filter) => {
+        return {
+            ...agg,
+            [filter.speaker]: agg[filter.speaker] ? [...agg[filter.speaker], filter] : [filter]
+        }
+    }, {})
 }
 
 const SpeakerComponent: React.FC = () => {
     const { speakers, speakerConfiguration, setSpeakerBase, updateSpeaker } = useContext(SpeakerContext)
     const { setFilterBase } = useContext(FilterContext)
+    const { filters, updateFilter, addFilter, removeFilter } = useContext(FilterContext)
+    const speakerFilters = perSpeakerFilters(filters)
     return <Space direction="vertical" size="middle" style={{ display: 'flex' }}>
         <Space direction="horizontal" size="middle" style={{ display: 'flex' }}>
             <Text strong>Select Speaker Layout</Text>
@@ -71,26 +74,17 @@ const SpeakerComponent: React.FC = () => {
                 style={{ width: '100%' }}
             />
         </Space>
-
         <List
             itemLayout="horizontal"
             dataSource={speakers}
-            renderItem={(speaker: Speaker) => (
-                <List.Item
-                    actions={[
-                        !speaker.isSubwoofer && <CrossoverAction speaker={speaker} updateSpeaker={updateSpeaker} />,
-                        <DelayAction speaker={speaker} updateSpeaker={updateSpeaker} />,
-                        <TrimAction speaker={speaker} updateSpeaker={updateSpeaker} />
-                    ]}
-                >
-                    <List.Item.Meta
-                        //todo, put picture of speaker type here.  need to "add speaker type" entry
-                        //avatar={<Avatar src={`https://xsgames.co/randomusers/avatar.php?g=pixel&key=0`} />}
-                        title={speaker.speaker}
-                    //description="Left Speaker"
-                    />
-                </List.Item>
-            )}
+            renderItem={(speaker: Speaker) => <SpeakerCard
+                speaker={speaker}
+                updateSpeaker={updateSpeaker}
+                filters={speakerFilters[speaker.speaker]}
+                updateFilter={updateFilter}
+                addFilter={() => addFilter(speaker.speaker)}
+                removeFilter={removeFilter}
+            />}
         />
     </Space>
 }
