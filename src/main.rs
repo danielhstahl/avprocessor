@@ -35,7 +35,7 @@ async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
         .await;
 
         let _2=sqlx::query(
-        "CREATE TABLE if not exists speakers (version text not null, speaker text not null, crossover integer, delay integer not null, gain real not null, is_subwoofer integer not null, PRIMARY KEY (version, speaker));",
+        "CREATE TABLE if not exists speakers (version text not null, speaker text not null, crossover integer, delay real not null, gain real not null, is_subwoofer integer not null, PRIMARY KEY (version, speaker));",
         )
         .execute(&db.0)
         .await;
@@ -44,6 +44,12 @@ async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
             sqlx::query("CREATE TABLE if not exists versions (version text not null PRIMARY KEY);")
                 .execute(&db.0)
                 .await;
+
+        let _4 = sqlx::query(
+            "CREATE TABLE if not exists applied_version (version text not null PRIMARY KEY);",
+        )
+        .execute(&db.0)
+        .await;
 
         Ok(rocket)
     } else {
@@ -125,15 +131,18 @@ fn convert_processor_settings_to_camilla(
 #[serde(crate = "rocket::serde", rename_all = "camelCase")]
 struct Version {
     version: String,
+    applied_version: bool,
 }
 #[get("/versions")]
 async fn get_versions(
     mut db: Connection<Settings>,
 ) -> Result<Json<Vec<Version>>, BadRequest<String>> {
-    let versions = sqlx::query_as::<_, Version>("SELECT version FROM versions")
-        .fetch_all(&mut *db)
-        .await
-        .map_err(|e| BadRequest(Some(e.to_string())))?;
+    let versions = sqlx::query_as::<_, Version>(
+        "SELECT t1.version, case when t2.version is null then false else true end as applied_version FROM versions t1 left join applied_version t2 on t1.version=t2.version",
+    )
+    .fetch_all(&mut *db)
+    .await
+    .map_err(|e| BadRequest(Some(e.to_string())))?;
 
     Ok(Json(versions))
 }
@@ -153,29 +162,29 @@ async fn config_latest(
 
 #[get("/config/<version>")]
 async fn config_version(
-    db: Connection<Settings>,
+    mut db: Connection<Settings>,
     version: &str,
 ) -> Result<Json<ProcessorSettings>, BadRequest<String>> {
-    get_version_from_db(db, version)
+    get_version_from_db(&mut db, version)
         .await
         .map(|v| Json(v))
         .map_err(|e| BadRequest(Some(e.to_string())))
 }
 
 async fn get_version_from_db(
-    mut db: Connection<Settings>,
+    db: &mut Connection<Settings>,
     version: &str,
 ) -> Result<ProcessorSettings, sqlx::Error> {
     let filters =
         sqlx::query_as::<_, Filter>("SELECT speaker, freq, gain, q from filters where version=?")
             .bind(version)
-            .fetch_all(&mut *db)
+            .fetch_all(&mut **db)
             .await?;
     let speakers = sqlx::query_as::<_, Speaker>(
         "SELECT speaker, crossover, delay, gain, is_subwoofer from speakers where version=?",
     )
     .bind(version)
-    .fetch_all(&mut *db)
+    .fetch_all(&mut **db)
     .await?;
     Ok(ProcessorSettings { filters, speakers })
 }
@@ -192,11 +201,11 @@ struct SetConfig {
 
 #[post("/config/apply/<version>", format = "application/json")]
 async fn apply_config_version(
-    db: Connection<Settings>,
+    mut db: Connection<Settings>,
     version: &str,
     camilla_dsp_url: &State<String>,
 ) -> Result<(), BadRequest<String>> {
-    let settings = get_version_from_db(db, version)
+    let settings = get_version_from_db(&mut db, version)
         .await
         .map_err(|e| BadRequest(Some(e.to_string())))?;
     let config = convert_processor_settings_to_camilla(&settings)
@@ -211,6 +220,17 @@ async fn apply_config_version(
     socket
         .send(Message::Text(config_as_json))
         .map_err(|e| BadRequest(Some(e.to_string())))?;
+
+    let _ = sqlx::query("DELETE from applied_version")
+        .execute(&mut *db)
+        .await
+        .map_err(|e| BadRequest(Some(e.to_string())))?;
+    let _ = sqlx::query("INSERT INTO applied_version (version) VALUES (?)")
+        .bind(&version)
+        .execute(&mut *db)
+        .await
+        .map_err(|e| BadRequest(Some(e.to_string())))?;
+
     Ok(())
 }
 
