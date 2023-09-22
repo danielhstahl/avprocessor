@@ -2,6 +2,7 @@ import React, { useState, PropsWithChildren } from "react"
 
 export type Version = {
     version: string
+    appliedVersion: boolean
 }
 const initVersions: Version[] = []
 interface VersionContextState {
@@ -24,7 +25,7 @@ export const VersionContext = React.createContext(versionContext)
 export const VersionProviderComponent = ({ children }: PropsWithChildren) => {
 
     const addVersion = (version: string) =>
-        setContext(currentContext => ({ ...currentContext, versions: [...currentContext.versions, { version }] }))
+        setContext(currentContext => ({ ...currentContext, versions: [...currentContext.versions, { version, appliedVersion: false }] }))
 
     const setVersions = (versions: Version[]) =>
         setContext(currentContext => ({ ...currentContext, versions }))

@@ -1,4 +1,4 @@
-import { List, Select, Space, Typography, Card, Button } from 'antd';
+import { List, Select, Space, Typography, Card, Button, message } from 'antd';
 import { Speaker, SPEAKER_OPTIONS } from '../state/speaker'
 import React, { useContext, useState } from 'react';
 import { SpeakerContext } from '../state/speaker'
@@ -21,13 +21,17 @@ const tabList = [
 
 type ConfigPayload = { speakers: Speaker[], filters: Filter[] }
 
-const saveConfig = (body: ConfigPayload, setVersion: (_: string) => void) => {
-    fetch(`/config`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body)
-    }).then(r => r.text()).then(setVersion)
-}
+const saveConfig = (body: ConfigPayload) => fetch(`/config`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+}).then(r => r.text())
+
+const applyConfig = (version: string) => fetch(`/config/apply/${version}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" }
+}).then(r => r.text())
+
 
 const SpeakerCard = ({
     speaker,
@@ -67,14 +71,40 @@ const perSpeakerFilters: (filters: FilterWithIndex[]) => SpeakerFilter = (filter
     }, {})
 }
 
-// TODO add "save" functionality
 const SpeakerComponent: React.FC = () => {
     const { speakers, speakerConfiguration, setSpeakerBase, updateSpeaker } = useContext(SpeakerContext)
-    const { addVersion, setSelectedVersion } = useContext(VersionContext)
+    const { addVersion, setSelectedVersion, selectedVersion } = useContext(VersionContext)
     const { setFilterBase } = useContext(FilterContext)
     const { filters, updateFilter, addFilter, removeFilter } = useContext(FilterContext)
     const speakerFilters = perSpeakerFilters(filters)
+
+    const [messageApi, contextHolder] = message.useMessage()
+
+    const saveSuccess = () => {
+        messageApi.success("Configuration Saved")
+    }
+    const saveFailure = () => {
+        messageApi.error("Something went wrong!")
+    }
+
+    const applySuccess = () => {
+        messageApi.success("Configuration Applied")
+    }
+
+    const onApply = () => {
+        if (selectedVersion) {
+            applyConfig(selectedVersion).then(applySuccess).catch(saveFailure)
+        }
+    }
+    const onSave = () => saveConfig({ speakers, filters })
+        .then(v => {
+            addVersion(v)
+            setSelectedVersion(v)
+        })
+        .then(saveSuccess)
+        .catch(saveFailure)
     return <Space direction="vertical" size="middle" style={{ display: 'flex' }}>
+        {contextHolder}
         <Space direction="horizontal" size="middle" style={{ display: 'flex' }}>
             <Text strong>Select Speaker Layout</Text>
             <Select
@@ -99,10 +129,10 @@ const SpeakerComponent: React.FC = () => {
                 removeFilter={removeFilter}
             />}
         />
-        <Button onClick={() => saveConfig({ speakers, filters }, v => {
-            addVersion(v)
-            setSelectedVersion(v)
-        })}>Save</Button>
+        <Space direction="horizontal" size="middle" style={{ display: 'flex' }}>
+            <Button type="primary" onClick={onSave}>Save</Button>
+            {selectedVersion && <Button type="primary" onClick={onApply}>Apply Configuration</Button>}
+        </Space>
     </Space>
 }
 

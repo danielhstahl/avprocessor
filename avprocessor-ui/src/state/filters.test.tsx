@@ -1,10 +1,4 @@
 
-describe("FilterProviderComponent", () => {
-    it("correctls adds filter when no filters exist", () => {
-
-    })
-})
-
 import { render, screen } from '@testing-library/react';
 import { FilterProviderComponent, FilterContext, setFiltersPure } from './filter'
 import { useContext } from 'react'

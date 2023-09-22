@@ -13,7 +13,7 @@ const { Text } = Typography;
 
 export const loader = () => fetch("/versions", {
   method: "GET",
-})
+}).then(r => r.json()).catch(() => [])
 
 export const SPEAKER_ROUTE = "/speakers"
 export const ADVANCED_ROUTE = "/prompt"
@@ -32,7 +32,10 @@ const App: React.FC = () => {
   const { setVersions, setSelectedVersion, selectedVersion, versions } = useContext(VersionContext)
   useEffect(() => {
     setVersions(fetchedVersions)
-    setSelectedVersion(fetchedVersions[fetchedVersions.length - 1].version)
+    if (fetchedVersions.length > 0) {
+      const appliedVersion = (fetchedVersions.find(v => v.appliedVersion) || fetchedVersions[fetchedVersions.length - 1]).version
+      setSelectedVersion(appliedVersion)
+    }
   }, [fetchedVersions, setSelectedVersion, setVersions])
 
   const { setSpeakers, setSpeakerBase, speakerConfiguration } = useContext(SpeakerContext)
