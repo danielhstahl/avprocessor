@@ -172,7 +172,7 @@ struct CrossoverParameters {
 #[derive(Serialize)]
 #[serde(crate = "rocket::serde")]
 struct DelayParameters {
-    delay: i32,
+    delay: f32,
     unit: DelayUnit,
 }
 

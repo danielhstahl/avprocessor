@@ -12,7 +12,7 @@ pub struct ProcessorSettings {
 pub struct Speaker {
     pub speaker: String,
     pub crossover: Option<i32>,
-    pub delay: i32,
+    pub delay: f32,
     pub gain: f32,
     pub is_subwoofer: bool,
 }
