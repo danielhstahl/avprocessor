@@ -40,6 +40,20 @@ type SpeakerFilter = {
     }
 }
 
+export const setFiltersPure = (filters: Filter[]) => filters.reduce<SpeakerFilter>((agg: SpeakerFilter, v: Filter) => {
+    const { filters, storeIndeces } = agg
+    const index = storeIndeces[v.speaker] ? storeIndeces[v.speaker] + 1 : 1
+    return {
+        filters: [...filters, { ...v, index }],
+        storeIndeces: { //this is just to keep track of the index per speaker.  Kind of lame, but best I can think of ATM
+            ...storeIndeces,
+            [v.speaker]: index
+        }
+    }
+}, { filters: [], storeIndeces: {} }).filters
+
+
+
 export const FilterProviderComponent = ({ children }: PropsWithChildren) => {
 
     const addFilter = (speaker: string) =>
@@ -51,17 +65,7 @@ export const FilterProviderComponent = ({ children }: PropsWithChildren) => {
     const setFilters = (filters: Filter[]) =>
         setContext(currentContext => ({
             ...currentContext,
-            filters: filters.reduce<SpeakerFilter>((agg: SpeakerFilter, v: Filter) => {
-                const { filters, storeIndeces } = agg
-                const index = storeIndeces[v.speaker] ? storeIndeces[v.speaker] + 1 : 1
-                return {
-                    filters: [...filters, { ...v, index }],
-                    storeIndeces: { //this is just to keep track of the index per speaker.  Kind of lame, but best I can think of ATM
-                        ...storeIndeces,
-                        [v.speaker]: index
-                    }
-                }
-            }, { filters: [], storeIndeces: {} }).filters
+            filters: setFiltersPure(filters)
         })
         )
 

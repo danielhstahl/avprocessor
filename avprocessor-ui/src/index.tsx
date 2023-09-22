@@ -8,9 +8,9 @@ import {
   RouterProvider,
 } from "react-router-dom";
 import { ROOT_ID } from './utils/constants'
-//import { PromptProviderComponent, ChatProviderComponent } from './state/providers'
 import { SpeakerProviderComponent } from './state/speaker';
 import { FilterProviderComponent } from './state/filter'
+import { VersionProviderComponent } from './state/version'
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement
 );
@@ -29,7 +29,9 @@ root.render(
   <React.StrictMode>
     <SpeakerProviderComponent>
       <FilterProviderComponent>
-        <RouterProvider router={router} />
+        <VersionProviderComponent>
+          <RouterProvider router={router} />
+        </VersionProviderComponent>
       </FilterProviderComponent>
     </SpeakerProviderComponent>
   </React.StrictMode>
