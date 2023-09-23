@@ -5,15 +5,35 @@ import { ROOT_ID } from './utils/constants'
 import Speakers from './pages/Speakers'
 import Advanced from './pages/Advanced'
 import Home from './pages/Home'
-import { SpeakerContext } from './state/speaker'
-import { FilterContext } from './state/filter'
+import { SpeakerContext, Speaker } from './state/speaker'
+import { FilterContext, Filter } from './state/filter'
 import { Version, VersionContext } from './state/version'
+import { getVersions } from './services/versions'
+import { getConfiguration, ConfigPayload } from './services/configuration'
 const { Header, Footer, Content } = Layout;
 const { Text } = Typography;
 
-export const loader = () => fetch("/versions", {
-  method: "GET",
-}).then(r => r.json()).catch(() => [])
+type VersionConfigurationPayload = {
+  versions: Version[],
+  speakers: Speaker[],
+  filters: Filter[],
+  appliedVersion: string
+}
+
+export const deriveAppliedVersion = (versions: Version[]) => (versions.find(v => v.appliedVersion) || versions[versions.length - 1]).version
+export const loader = () => {
+  return getVersions().then(versions => {
+    if (versions.length > 0) {
+      const appliedVersion = deriveAppliedVersion(versions)
+      return getConfiguration(appliedVersion).then(({ speakers, filters }) => ({ versions, speakers, filters, appliedVersion }))
+    }
+    else {
+      return {
+        versions
+      }
+    }
+  })
+}
 
 export const SPEAKER_ROUTE = "/speakers"
 export const ADVANCED_ROUTE = "/prompt"
@@ -25,37 +45,55 @@ export const MenuItems = [
   { key: ADVANCED_ROUTE, label: "Advanced", element: <Advanced /> },
 ]
 
-const App: React.FC = () => {
-  const navigate = useNavigate();
-  const location = useLocation()
-  const fetchedVersions = useRouteLoaderData(ROOT_ID) as Version[];
-  const { setVersions, setSelectedVersion, selectedVersion, versions } = useContext(VersionContext)
-  useEffect(() => {
-    setVersions(fetchedVersions)
-    if (fetchedVersions.length > 0) {
-      const appliedVersion = (fetchedVersions.find(v => v.appliedVersion) || fetchedVersions[fetchedVersions.length - 1]).version
-      setSelectedVersion(appliedVersion)
-    }
-  }, [fetchedVersions, setSelectedVersion, setVersions])
+interface AppProps {
+  getConfigurationProp?: (_: string) => Promise<ConfigPayload>
+}
 
+
+const App: React.FC<AppProps> = ({ getConfigurationProp = getConfiguration }: AppProps) => {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { versions: fetchedVersions, speakers, filters, appliedVersion } = useRouteLoaderData(ROOT_ID) as VersionConfigurationPayload;
+  const { setVersions, setSelectedVersion, selectedVersion, versions } = useContext(VersionContext)
   const { setSpeakers, setSpeakerBase, speakerConfiguration } = useContext(SpeakerContext)
   const { setFilters, setFilterBase } = useContext(FilterContext)
+  useEffect(() => {
+    setVersions(fetchedVersions)
+  }, [fetchedVersions, setVersions])
+
+  useEffect(() => {
+    if (appliedVersion) {
+      setSelectedVersion(appliedVersion)
+    }
+  }, [appliedVersion, setSelectedVersion]) //only called once on load
+
+  useEffect(() => {
+    if (speakers) {
+      setSpeakers(speakers)
+    }
+  }, [speakers, setSpeakers])
+
+  useEffect(() => {
+    if (filters) {
+      setFilters(filters)
+    }
+  }, [filters, setFilters])
+
 
   useEffect(() => {
     setSpeakerBase(speakerConfiguration)
     setFilterBase(speakerConfiguration)
   }, [speakerConfiguration, setSpeakerBase, setFilterBase])
 
-  useEffect(() => {
-    fetch(`/config/${selectedVersion}`, {
-      method: "GET",
-    }).then(r => r.json()).then(({ speakers, filters }) => {
+  const onSelectVersion = (version: string) => {
+    setSelectedVersion(version)
+    getConfigurationProp(version).then(({ filters, speakers }) => {
       if (speakers && speakers.length > 0) {
         setSpeakers(speakers) //this will trigger a `setSpeakerBase` and `setFilterBase` since it will update the speakerConfiguration
         setFilters(filters)
       }
     })
-  }, [selectedVersion, setSpeakers, setFilters])
+  }
 
   return (
     <Layout className="layout" style={{ minHeight: "100vh" }}>
@@ -72,7 +110,7 @@ const App: React.FC = () => {
       <Content style={{ padding: '0 50px' }}>
         <Space direction="horizontal" size="middle" style={{ display: 'flex' }}>
           <Text strong>Select Configuration Version</Text>
-          <Select value={selectedVersion} onChange={setSelectedVersion} options={versions.map(({ version }) => ({ value: version, label: version }))} style={{ width: '100%' }} />
+          <Select value={selectedVersion} onChange={onSelectVersion} options={versions.map(({ version }) => ({ value: version, label: version }))} style={{ width: '100%' }} />
         </Space>
         <Outlet />
       </Content>

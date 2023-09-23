@@ -2,10 +2,11 @@ import { List, Select, Space, Typography, Card, Button, message } from 'antd';
 import { Speaker, SPEAKER_OPTIONS } from '../state/speaker'
 import React, { useContext, useState } from 'react';
 import { SpeakerContext } from '../state/speaker'
-import { FilterContext, FilterWithIndex, Filter } from '../state/filter'
+import { FilterContext, FilterWithIndex } from '../state/filter'
 import SpeakerRecord, { SpeakerProps } from '../components/Speakers'
 import PeqRecord, { PeqProps } from '../components/Peq'
 import { VersionContext } from '../state/version'
+import { applyConfig, saveConfig } from '../services/configuration';
 const { Text } = Typography
 
 const tabList = [
@@ -18,20 +19,6 @@ const tabList = [
         key: "peq"
     }
 ]
-
-type ConfigPayload = { speakers: Speaker[], filters: Filter[] }
-
-const saveConfig = (body: ConfigPayload) => fetch(`/config`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
-}).then(r => r.text())
-
-const applyConfig = (version: string) => fetch(`/config/apply/${version}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" }
-}).then(r => r.text())
-
 
 const SpeakerCard = ({
     speaker,
