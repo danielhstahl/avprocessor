@@ -1,5 +1,5 @@
 
-import { render, screen } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react';
 import { FilterProviderComponent, FilterContext, setFiltersPure } from './filter'
 import { useContext } from 'react'
 import userEvent from '@testing-library/user-event'
@@ -68,7 +68,7 @@ describe("FilterProviderComponent", () => {
                 </div>
             </FilterProviderComponent>
         )
-        await user.click(screen.getByRole('button', { name: /click/i }))
+        await act(async () => user.click(screen.getByRole('button', { name: /click/i })))
         const speaker = screen.getByText(/myspeaker/i);
         expect(speaker).toBeInTheDocument()
     })
@@ -90,7 +90,7 @@ describe("FilterProviderComponent", () => {
                     freq: 800,
                     gain: 3
                 }
-            ])}>click</button>{filters.map(v => <p key={v.speaker}>{v.speaker + v.index}</p>)}</div>
+            ])}>click</button>{filters.map((v, i) => <p key={i}>{v.speaker + v.index}</p>)}</div>
         }
         render(
             <FilterProviderComponent>
@@ -99,7 +99,7 @@ describe("FilterProviderComponent", () => {
                 </div>
             </FilterProviderComponent>
         )
-        await user.click(screen.getByRole('button', { name: /click/i }))
+        await act(async () => user.click(screen.getByRole('button', { name: /click/i })))
         const speaker1 = screen.getAllByText(/speaker1/i);
         expect(speaker1.length).toEqual(2)
         const speakerIndex1 = screen.getByText(/speaker11/i);
@@ -122,7 +122,7 @@ describe("FilterProviderComponent", () => {
                 </div>
             </FilterProviderComponent>
         )
-        await user.click(screen.getByRole('button', { name: /click/i }))
+        await act(async () => user.click(screen.getByRole('button', { name: /click/i })))
         const speaker1 = screen.getByText(/Surround Left0/i);
         expect(speaker1).toBeInTheDocument()
 

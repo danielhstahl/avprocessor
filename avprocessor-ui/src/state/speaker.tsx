@@ -298,7 +298,8 @@ const speakerContext = {
 }
 
 export const SpeakerContext = React.createContext(speakerContext)
-const getSpeakerConfigurationFromSpeakers = (speakers: Speaker[]) => {
+//exported for testing
+export const getSpeakerConfigurationFromSpeakers = (speakers: Speaker[]) => {
     const { numSpeak, numSub } = speakers.reduce((agg, curr) => ({
         numSpeak: agg.numSpeak + (curr.isSubwoofer ? 0 : 1), numSub: agg.numSub + (curr.isSubwoofer ? 1 : 0)
     }), { numSpeak: 0, numSub: 0 })

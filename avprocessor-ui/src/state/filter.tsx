@@ -20,8 +20,6 @@ const filterContext = {
     updateFilter: (update: FilterWithIndex) => { },
     removeFilter: (update: FilterWithIndex) => { }
 }
-//const DEFAULT_FILTER_SETTINGS = { freq: 0, gain: 0, q: 0 }
-
 const getDefaultSettings: (speaker: string, i: number) => FilterWithIndex = (speaker: string, index: number) => {
     return {
         speaker,
@@ -40,6 +38,7 @@ type SpeakerFilter = {
     }
 }
 
+//exported for testing
 export const setFiltersPure = (filters: Filter[]) => filters.reduce<SpeakerFilter>((agg: SpeakerFilter, v: Filter) => {
     const { filters, storeIndeces } = agg
     const index = storeIndeces[v.speaker] ? storeIndeces[v.speaker] + 1 : 1
