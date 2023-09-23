@@ -60,7 +60,7 @@ const perSpeakerFilters: (filters: FilterWithIndex[]) => SpeakerFilter = (filter
 
 const SpeakerComponent: React.FC = () => {
     const { speakers, speakerConfiguration, setSpeakerBase, updateSpeaker } = useContext(SpeakerContext)
-    const { addVersion, setSelectedVersion, selectedVersion } = useContext(VersionContext)
+    const { addVersion, setSelectedVersion, selectedVersion, setAppliedVersion } = useContext(VersionContext)
     const { setFilterBase } = useContext(FilterContext)
     const { filters, updateFilter, addFilter, removeFilter } = useContext(FilterContext)
     const speakerFilters = perSpeakerFilters(filters)
@@ -80,7 +80,7 @@ const SpeakerComponent: React.FC = () => {
 
     const onApply = () => {
         if (selectedVersion) {
-            applyConfig(selectedVersion).then(applySuccess).catch(saveFailure)
+            applyConfig(selectedVersion).then(setAppliedVersion).then(applySuccess).catch(saveFailure)
         }
     }
     const onSave = () => saveConfig({ speakers, filters })
@@ -105,7 +105,7 @@ const SpeakerComponent: React.FC = () => {
             />
         </Space>
         <List
-            itemLayout="horizontal"
+            itemLayout="vertical"
             dataSource={speakers}
             renderItem={(speaker: Speaker) => <SpeakerCard
                 speaker={speaker}

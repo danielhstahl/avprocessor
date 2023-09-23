@@ -17,3 +17,7 @@ export const applyConfig = (version: string) => fetch(`/config/apply/${version}`
     method: "POST",
     headers: { "Content-Type": "application/json" }
 }).then(r => r.text())
+
+export const deleteConfig = (version: string) => fetch(`/config/${version}`, {
+    method: "DELETE",
+}).then(r => r.text())

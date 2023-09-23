@@ -11,12 +11,16 @@ interface VersionContextState {
     setSelectedVersion: (_: string) => void,
     addVersion: (_: string) => void,
     setVersions: (_: Version[]) => void,
+    setAppliedVersion: (_: string) => void,
+    removeVersion: (_: string) => void,
 }
 const versionContext: VersionContextState = {
     versions: initVersions,
     setSelectedVersion: (_: string) => { },
     addVersion: (_: string) => { },
     setVersions: (_: Version[]) => { },
+    setAppliedVersion: (_: string) => { },
+    removeVersion: (_: string) => { },
 }
 
 export const VersionContext = React.createContext(versionContext)
@@ -30,15 +34,24 @@ export const VersionProviderComponent = ({ children }: PropsWithChildren) => {
     const setVersions = (versions: Version[]) =>
         setContext(currentContext => ({ ...currentContext, versions }))
 
+    const removeVersion = (version: string) =>
+        setContext(currentContext => ({ ...currentContext, versions: currentContext.versions.filter(v => v.version !== version) }))
+
     const setSelectedVersion = (version: string) =>
         setContext(currentContext => ({ ...currentContext, selectedVersion: version }))
 
-
+    const setAppliedVersion = (versionApplied: string) =>
+        setContext(currentContext => ({
+            ...currentContext,
+            versions: currentContext.versions.map(({ version }) => ({ version, appliedVersion: version === versionApplied }))
+        }))
     const initState = {
         versions: initVersions,
         addVersion,
         setVersions,
-        setSelectedVersion
+        setSelectedVersion,
+        setAppliedVersion,
+        removeVersion
     }
     const [context, setContext] = useState(initState)
 
