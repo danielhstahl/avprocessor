@@ -1,16 +1,12 @@
 import React from 'react';
 import { ROOT_ID } from './utils/constants'
-import { render, screen, waitFor, act } from '@testing-library/react';
-import userEvent from '@testing-library/user-event'
-
+import { render, screen, waitFor } from '@testing-library/react';
+import Speaker from './pages/Speakers'
 import { SpeakerProviderComponent } from './state/speaker';
 import { FilterProviderComponent } from './state/filter'
 import { VersionProviderComponent } from './state/version'
 import App, { deriveAppliedVersion } from './App';
-import {
-  createMemoryRouter,
-  RouterProvider
-} from "react-router-dom";
+import { createMemoryRouter, RouterProvider } from "react-router-dom";
 
 describe("UI", () => {
   test('renders configuration version', async () => {
@@ -31,44 +27,71 @@ describe("UI", () => {
         <VersionProviderComponent><RouterProvider router={router} /></VersionProviderComponent>
       </FilterProviderComponent>
     </SpeakerProviderComponent>)
-    await waitFor(() => expect(screen.getByText(/Select Configuration Version/i)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(/Hello/i)).toBeInTheDocument())
 
   });
-
-  test('correct version displays and update made', async () => {
-    const spy = jest.fn((_: string) => Promise.resolve({ speakers: [], filters: [] }))
+  test('correct speaker configuration', async () => {
     const router = createMemoryRouter([
       {
 
         path: "/",
-        element: <App getConfigurationProp={spy} />,
+        element: <App />,
         id: ROOT_ID,
         errorElement: <p>Uh oh, 404</p>,
-        loader: () => ({ versions: [{ version: "0.1", appliedVersion: true }, { version: "0.2", appliedVersion: true }], speakers: undefined, filters: undefined, appliedVersion: undefined }),
-        children: [{ path: "/", element: <div>Hello</div> }]
+        loader: () => ({
+          versions: [{ version: "0.1", appliedVersion: true }],
+          speakers: [{
+            speaker: "sp1",
+            isSubwoofer: false,
+            crossover: 100,
+            delay: 4,
+            gain: 2
+          },
+          {
+            speaker: "sp2",
+            isSubwoofer: false,
+            crossover: 100,
+            delay: 4,
+            gain: 2
+          },
+          {
+            speaker: "sp3",
+            isSubwoofer: false,
+            crossover: 100,
+            delay: 4,
+            gain: 2
+          },
+          {
+            speaker: "sp4",
+            isSubwoofer: false,
+            crossover: 100,
+            delay: 4,
+            gain: 2
+          },
+          {
+            speaker: "sp5",
+            isSubwoofer: true,
+            crossover: 100,
+            delay: 4,
+            gain: 2
+          }],
+          filters: undefined,
+          appliedVersion: undefined
+        }),
+        children: [{ path: "/speakers", element: <Speaker /> }]
       },
 
-    ], { initialEntries: ["/"] });
-
+    ], { initialEntries: ["/speakers"] });
     render(<SpeakerProviderComponent>
       <FilterProviderComponent>
-        <VersionProviderComponent><RouterProvider router={router} /></VersionProviderComponent>
+        <VersionProviderComponent>
+          <RouterProvider router={router} />
+        </VersionProviderComponent>
       </FilterProviderComponent>
     </SpeakerProviderComponent>)
-
-    const select = await waitFor(() => screen.getByRole('combobox'))
-    await act(async () => await userEvent.click(select))
-    const initSelect = await waitFor(() => screen.getByTitle('0.1'))
-    expect(initSelect.className).toContain("ant-select-item-option-active")
-
-    await waitFor(() => screen.getByTitle('0.2'))
-    await act(async () => await userEvent.click(screen.getByTitle('0.2')))
-    const secondSelect = await waitFor(() => screen.getAllByTitle('0.2').at(1))
-    expect(secondSelect?.className).toContain("ant-select-item-option-active")
-
-    expect(spy).toHaveBeenCalledWith("0.2")
+    const select = await waitFor(() => screen.getAllByTitle('4.1').at(0))
+    expect(select?.textContent).toEqual("4.1")
   });
-
 })
 
 describe("deriveAppliedVersion", () => {

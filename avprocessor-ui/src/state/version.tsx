@@ -25,8 +25,10 @@ const versionContext: VersionContextState = {
 
 export const VersionContext = React.createContext(versionContext)
 
-
-export const VersionProviderComponent = ({ children }: PropsWithChildren) => {
+interface VersionProviderProps extends PropsWithChildren {
+    versions?: Version[]
+}
+export const VersionProviderComponent = ({ versions = initVersions, children }: VersionProviderProps) => {
 
     const addVersion = (version: string) =>
         setContext(currentContext => ({ ...currentContext, versions: [...currentContext.versions, { version, appliedVersion: false }] }))
@@ -46,7 +48,7 @@ export const VersionProviderComponent = ({ children }: PropsWithChildren) => {
             versions: currentContext.versions.map(({ version }) => ({ version, appliedVersion: version === versionApplied }))
         }))
     const initState = {
-        versions: initVersions,
+        versions: versions,
         addVersion,
         setVersions,
         setSelectedVersion,

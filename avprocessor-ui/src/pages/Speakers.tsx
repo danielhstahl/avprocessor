@@ -6,7 +6,8 @@ import { FilterContext, FilterWithIndex } from '../state/filter'
 import SpeakerRecord, { SpeakerProps } from '../components/Speakers'
 import PeqRecord, { PeqProps } from '../components/Peq'
 import { VersionContext } from '../state/version'
-import { applyConfig, saveConfig } from '../services/configuration';
+import { applyConfig, saveConfig, getConfiguration, ConfigPayload } from '../services/configuration';
+
 const { Text } = Typography
 
 const tabList = [
@@ -57,12 +58,14 @@ const perSpeakerFilters: (filters: FilterWithIndex[]) => SpeakerFilter = (filter
         }
     }, {})
 }
-
-const SpeakerComponent: React.FC = () => {
-    const { speakers, speakerConfiguration, setSpeakerBase, updateSpeaker } = useContext(SpeakerContext)
-    const { addVersion, setSelectedVersion, selectedVersion, setAppliedVersion } = useContext(VersionContext)
+interface SpeakerComponentProps {
+    getConfigurationProp?: (_: string) => Promise<ConfigPayload>
+}
+const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationProp = getConfiguration }: SpeakerComponentProps) => {
+    const { speakers, speakerConfiguration, setSpeakerConfiguration, setSpeakerBase, updateSpeaker, setSpeakers, } = useContext(SpeakerContext)
+    const { addVersion, setSelectedVersion, selectedVersion, setAppliedVersion, versions } = useContext(VersionContext)
     const { setFilterBase } = useContext(FilterContext)
-    const { filters, updateFilter, addFilter, removeFilter } = useContext(FilterContext)
+    const { filters, updateFilter, addFilter, removeFilter, setFilters } = useContext(FilterContext)
     const speakerFilters = perSpeakerFilters(filters)
 
     const [messageApi, contextHolder] = message.useMessage()
@@ -90,37 +93,55 @@ const SpeakerComponent: React.FC = () => {
         })
         .then(saveSuccess)
         .catch(saveFailure)
-    return <Space direction="vertical" size="middle" style={{ display: 'flex' }}>
-        {contextHolder}
+
+    const onSelectVersion = (version: string) => {
+        setSelectedVersion(version)
+        getConfigurationProp(version).then(({ filters, speakers }) => {
+            if (speakers && speakers.length > 0) {
+                setSpeakers(speakers) //this will trigger a `setSpeakerBase` and `setFilterBase` since it will update the speakerConfiguration
+                setFilters(filters)
+            }
+        })
+    }
+    return <>
+        <br />
         <Space direction="horizontal" size="middle" style={{ display: 'flex' }}>
-            <Text strong>Select Speaker Layout</Text>
-            <Select
-                value={speakerConfiguration}
-                onChange={v => {
-                    setSpeakerBase(v)
-                    setFilterBase(v)
-                }}
-                options={SPEAKER_OPTIONS.map(({ label }) => ({ value: label, label }))}
-                style={{ width: '100%' }}
+            <Text strong>Select Configuration Version</Text>
+            <Select value={selectedVersion} onChange={onSelectVersion} options={versions.map(({ version }) => ({ value: version, label: version }))} style={{ width: '100%' }} />
+        </Space>
+        <br />
+        <Space direction="vertical" size="middle" style={{ display: 'flex' }}>
+            {contextHolder}
+            <Space direction="horizontal" size="middle" style={{ display: 'flex' }}>
+                <Text strong>Select Speaker Layout</Text>
+                <Select
+                    value={speakerConfiguration}
+                    onChange={v => {
+                        setSpeakerConfiguration(v)
+                        setSpeakerBase(v)
+                        setFilterBase(v)
+                    }}
+                    options={SPEAKER_OPTIONS.map(({ label }) => ({ value: label, label }))}
+                    style={{ width: '100%' }}
+                />
+            </Space>
+            <List
+                itemLayout="vertical"
+                dataSource={speakers}
+                renderItem={(speaker: Speaker) => <SpeakerCard
+                    speaker={speaker}
+                    updateSpeaker={updateSpeaker}
+                    filters={speakerFilters[speaker.speaker]}
+                    updateFilter={updateFilter}
+                    addFilter={() => addFilter(speaker.speaker)}
+                    removeFilter={removeFilter}
+                />}
             />
-        </Space>
-        <List
-            itemLayout="vertical"
-            dataSource={speakers}
-            renderItem={(speaker: Speaker) => <SpeakerCard
-                speaker={speaker}
-                updateSpeaker={updateSpeaker}
-                filters={speakerFilters[speaker.speaker]}
-                updateFilter={updateFilter}
-                addFilter={() => addFilter(speaker.speaker)}
-                removeFilter={removeFilter}
-            />}
-        />
-        <Space direction="horizontal" size="middle" style={{ display: 'flex' }}>
-            <Button type="primary" onClick={onSave}>Save</Button>
-            {selectedVersion && <Button type="primary" onClick={onApply}>Apply Configuration</Button>}
-        </Space>
-    </Space>
+            <Space direction="horizontal" size="middle" style={{ display: 'flex' }}>
+                <Button type="primary" onClick={onSave}>Save</Button>
+                {selectedVersion && <Button type="primary" onClick={onApply}>Apply Configuration</Button>}
+            </Space>
+        </Space></>
 }
 
 export default SpeakerComponent;

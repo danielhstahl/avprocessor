@@ -305,10 +305,14 @@ export const getSpeakerConfigurationFromSpeakers = (speakers: Speaker[]) => {
     }), { numSpeak: 0, numSub: 0 })
     return `${numSpeak}.${numSub}`
 }
-export const SpeakerProviderComponent = ({ children }: PropsWithChildren) => {
+
+interface SpeakerProviderProps extends PropsWithChildren {
+    speakers?: Speaker[]
+}
+export const SpeakerProviderComponent = ({ speakers = initSpeakers, children }: SpeakerProviderProps) => {
     const setSpeakers = (speakers: Speaker[]) => setContext((currentContext) => ({
         ...currentContext,
-        speakers: speakers,
+        speakers,
         speakerConfiguration: getSpeakerConfigurationFromSpeakers(speakers)
     }))
 
@@ -326,7 +330,6 @@ export const SpeakerProviderComponent = ({ children }: PropsWithChildren) => {
                 const existingSpeaker = currentContext.speakers.find(s => s.speaker === baseSpeaker.speaker)
                 return existingSpeaker || { ...DEFAULT_SPEAKER_SETTINGS, ...baseSpeaker }
             }),
-            speakerConfiguration
         } : currentContext
     })
 
@@ -335,10 +338,8 @@ export const SpeakerProviderComponent = ({ children }: PropsWithChildren) => {
         speakerConfiguration: contextUpdates
     }))
 
-
-
     const initState = {
-        speakers: initSpeakers,
+        speakers,
         speakerConfiguration: initSpeakerConfiguration,
         setSpeakerBase,
         setSpeakers,
