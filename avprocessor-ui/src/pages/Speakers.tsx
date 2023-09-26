@@ -1,4 +1,4 @@
-import { List, Select, Space, Typography, Card, Button, message } from 'antd';
+import { List, Select, Space, Typography, Card, Button, message, Row, Col } from 'antd';
 import { Speaker, SPEAKER_OPTIONS } from '../state/speaker'
 import React, { useContext, useState } from 'react';
 import { SpeakerContext } from '../state/speaker'
@@ -104,16 +104,19 @@ const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationPro
         })
     }
     return <>
-        <br />
-        <Space direction="horizontal" size="middle" style={{ display: 'flex' }}>
-            <Text strong>Select Configuration Version</Text>
-            <Select value={selectedVersion} onChange={onSelectVersion} options={versions.map(({ version }) => ({ value: version, label: version }))} style={{ width: '100%' }} />
-        </Space>
-        <br />
-        <Space direction="vertical" size="middle" style={{ display: 'flex' }}>
-            {contextHolder}
-            <Space direction="horizontal" size="middle" style={{ display: 'flex' }}>
+        <Row style={{ paddingTop: 20 }}>
+            <Col xs={6}>
+                <Text strong>Select Configuration Version</Text>
+            </Col>
+            <Col xs={18}>
+                <Select value={selectedVersion} onChange={onSelectVersion} options={versions.map(({ version }) => ({ value: version, label: version }))} style={{ width: '100%' }} />
+            </Col>
+        </Row>
+        <Row style={{ paddingTop: 20, paddingBottom: 20 }}>
+            <Col xs={6}>
                 <Text strong>Select Speaker Layout</Text>
+            </Col>
+            <Col xs={18}>
                 <Select
                     value={speakerConfiguration}
                     onChange={v => {
@@ -124,24 +127,28 @@ const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationPro
                     options={SPEAKER_OPTIONS.map(({ label }) => ({ value: label, label }))}
                     style={{ width: '100%' }}
                 />
-            </Space>
-            <List
-                itemLayout="vertical"
-                dataSource={speakers}
-                renderItem={(speaker: Speaker) => <SpeakerCard
-                    speaker={speaker}
-                    updateSpeaker={updateSpeaker}
-                    filters={speakerFilters[speaker.speaker]}
-                    updateFilter={updateFilter}
-                    addFilter={() => addFilter(speaker.speaker)}
-                    removeFilter={removeFilter}
-                />}
-            />
-            <Space direction="horizontal" size="middle" style={{ display: 'flex' }}>
-                <Button type="primary" onClick={onSave}>Save</Button>
-                {selectedVersion && <Button type="primary" onClick={onApply}>Apply Configuration</Button>}
-            </Space>
-        </Space></>
+            </Col>
+        </Row>
+
+        {contextHolder}
+
+        <List
+            itemLayout="vertical"
+            dataSource={speakers}
+            renderItem={(speaker: Speaker) => <SpeakerCard
+                speaker={speaker}
+                updateSpeaker={updateSpeaker}
+                filters={speakerFilters[speaker.speaker]}
+                updateFilter={updateFilter}
+                addFilter={() => addFilter(speaker.speaker)}
+                removeFilter={removeFilter}
+            />}
+        />
+        <Space direction="horizontal" size="middle" style={{ display: 'flex', paddingTop: 20 }}>
+            <Button type="primary" onClick={onSave}>Save</Button>
+            {selectedVersion && <Button type="primary" onClick={onApply}>Apply Configuration</Button>}
+        </Space>
+    </>
 }
 
 export default SpeakerComponent;
