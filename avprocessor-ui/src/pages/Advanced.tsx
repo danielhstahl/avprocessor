@@ -5,6 +5,7 @@ import { Version, VersionContext } from '../state/version'
 import { deleteConfig } from '../services/configuration';
 const { Text } = Typography
 
+//add ms/ft/meters selection
 const AdvancedComponent: React.FC = () => {
     const { versions, removeVersion } = useContext(VersionContext)
 
@@ -35,11 +36,5 @@ const AdvancedComponent: React.FC = () => {
         />
     </Space>
 }
-
-/**{version.appliedVersion ?}
-                <List.Item.Meta
-                    title={`Version: ${version.version}`}
-                    description={version.appliedVersion && "Currently applied"}
-                /> */
 
 export default AdvancedComponent;

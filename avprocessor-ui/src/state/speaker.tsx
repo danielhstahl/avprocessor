@@ -1,11 +1,20 @@
 import React, { useState, PropsWithChildren } from "react"
 
-export type Speaker = {
+type BaseSpeaker = {
     speaker: string
     crossover: number | null
-    delay: number
     gain: number
     isSubwoofer: boolean
+}
+export interface Speaker extends BaseSpeaker {
+    delay: number
+}
+
+//this needs to be converted to Speaker, delay_slash_distance will hold the distance in meters or feet, or the ms delay
+export interface SpeakerForm extends BaseSpeaker {
+    delay: number | null
+    distance_in_meters: number | null
+    distance_in_feet: number | null
 }
 
 type SpeakerOption = { label: string, speakers: { speaker: string, isSubwoofer: boolean }[] }[]
