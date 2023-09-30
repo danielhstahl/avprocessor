@@ -1,65 +1,98 @@
-import React, { useState, PropsWithChildren } from "react"
+import { useReducer, useContext, createContext, PropsWithChildren } from "react"
 
 export type Version = {
     version: string
     appliedVersion: boolean
 }
-const initVersions: Version[] = []
-interface VersionContextState {
+
+type State = {
     versions: Version[],
-    selectedVersion?: string,
-    setSelectedVersion: (_: string) => void,
-    addVersion: (_: string) => void,
-    setVersions: (_: Version[]) => void,
-    setAppliedVersion: (_: string) => void,
-    removeVersion: (_: string) => void,
-}
-const versionContext: VersionContextState = {
-    versions: initVersions,
-    setSelectedVersion: (_: string) => { },
-    addVersion: (_: string) => { },
-    setVersions: (_: Version[]) => { },
-    setAppliedVersion: (_: string) => { },
-    removeVersion: (_: string) => { },
+    selectedVersion?: string
 }
 
-export const VersionContext = React.createContext(versionContext)
-
-interface VersionProviderProps extends PropsWithChildren {
-    versions?: Version[]
+export enum VersionAction {
+    ADD,
+    SELECT,
+    SET_APPLIED,
+    REMOVE,
+    INIT
 }
-export const VersionProviderComponent = ({ versions = initVersions, children }: VersionProviderProps) => {
 
-    const addVersion = (version: string) =>
-        setContext(currentContext => ({ ...currentContext, versions: [...currentContext.versions, { version, appliedVersion: false }] }))
+interface ActionInterface {
+    type: VersionAction;
+}
 
-    const setVersions = (versions: Version[]) =>
-        setContext(currentContext => ({ ...currentContext, versions }))
+interface VersionActionInterface extends ActionInterface {
+    value: string;
+}
 
-    const removeVersion = (version: string) =>
-        setContext(currentContext => ({ ...currentContext, versions: currentContext.versions.filter(v => v.version !== version) }))
+interface VersionsActionInterface extends ActionInterface {
+    value: Version[];
+}
+type Action = VersionActionInterface | VersionsActionInterface;
 
-    const setSelectedVersion = (version: string) =>
-        setContext(currentContext => ({ ...currentContext, selectedVersion: version }))
+const initialState: State = {
+    versions: []
+}
+const VersionContext = createContext({
+    state: initialState,
+    dispatch: (_: Action) => { }
+})
 
-    const setAppliedVersion = (versionApplied: string) =>
-        setContext(currentContext => ({
-            ...currentContext,
-            versions: currentContext.versions.map(({ version }) => ({ version, appliedVersion: version === versionApplied }))
-        }))
-    const initState = {
-        versions: versions,
-        addVersion,
-        setVersions,
-        setSelectedVersion,
-        setAppliedVersion,
-        removeVersion
+export function versionReducer(state: State, action: Action): State {
+    switch (action.type) {
+        case VersionAction.ADD:
+            const versionToAdd = action.value as string
+            return {
+                ...state,
+                versions: [...state.versions, { version: versionToAdd, appliedVersion: false }]
+            }
+        case VersionAction.REMOVE:
+            const versionToRemove = action.value as string
+            return {
+                ...state,
+                versions: state.versions.filter(v => v.version !== versionToRemove)
+            }
+        case VersionAction.INIT:
+            const versions = action.value as Version[]
+            return {
+                ...state,
+                versions
+            }
+        case VersionAction.SELECT:
+            const selectedVersion = action.value as string
+            return {
+                ...state,
+                selectedVersion
+            }
+        case VersionAction.SET_APPLIED:
+            const appliedVersion = action.value as string
+            return {
+                ...state,
+                versions: state.versions.map(({ version }) => ({ version, appliedVersion: version === appliedVersion }))
+            }
+        default:
+            return state
     }
-    const [context, setContext] = useState(initState)
+}
+
+interface VersionProps extends PropsWithChildren {
+    versionState?: State
+}
+export const VersionProvider = ({ versionState = initialState, children }: VersionProps) => {
+    const [state, dispatch] = useReducer(versionReducer, versionState);
 
     return (
-        <VersionContext.Provider value={context}>
+        <VersionContext.Provider value={{ state, dispatch }}>
             {children}
         </VersionContext.Provider>
-    )
+    );
+};
+
+export const useVersion = () => {
+    const context = useContext(VersionContext);
+    if (!context) {
+        throw new Error("useVersion must be used within a VersionProvider");
+    }
+    return context;
 }

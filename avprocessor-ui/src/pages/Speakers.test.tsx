@@ -2,9 +2,9 @@ import userEvent from '@testing-library/user-event'
 import { ROOT_ID } from '../utils/constants'
 import { render, screen, waitFor, act } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
-import { SpeakerProviderComponent } from '../state/speaker'
-import { FilterProviderComponent } from '../state/filter'
-import { VersionProviderComponent } from '../state/version'
+import { SpeakerProvider } from '../state/speaker'
+import { FilterProvider } from '../state/filter'
+import { VersionProvider } from '../state/version'
 import Speaker from './Speakers'
 describe("SpeakerComponent", () => {
     test('renders configuration version', async () => {
@@ -20,13 +20,13 @@ describe("SpeakerComponent", () => {
             },
 
         ], { initialEntries: ["/"] });
-        render(<SpeakerProviderComponent>
-            <FilterProviderComponent>
-                <VersionProviderComponent>
+        render(<SpeakerProvider>
+            <FilterProvider>
+                <VersionProvider>
                     <RouterProvider router={router} />
-                </VersionProviderComponent>
-            </FilterProviderComponent>
-        </SpeakerProviderComponent>)
+                </VersionProvider>
+            </FilterProvider>
+        </SpeakerProvider>)
         await waitFor(() => expect(screen.getByText(/Select Configuration Version/i)).toBeInTheDocument())
 
     });
@@ -45,13 +45,18 @@ describe("SpeakerComponent", () => {
 
         ], { initialEntries: ["/"] });
 
-        render(<SpeakerProviderComponent>
-            <FilterProviderComponent>
-                <VersionProviderComponent versions={[{ version: "0.1", appliedVersion: true }, { version: "0.2", appliedVersion: true }]}>
+        render(<SpeakerProvider>
+            <FilterProvider>
+                <VersionProvider versionState={{
+                    versions: [
+                        { version: "0.1", appliedVersion: true },
+                        { version: "0.2", appliedVersion: true }
+                    ]
+                }}>
                     <RouterProvider router={router} />
-                </VersionProviderComponent>
-            </FilterProviderComponent>
-        </SpeakerProviderComponent>)
+                </VersionProvider>
+            </FilterProvider>
+        </SpeakerProvider >)
 
         const select = await waitFor(() => screen.getAllByRole('combobox').at(0))
         if (select) {

@@ -1,11 +1,11 @@
 import { List, Select, Space, Typography, Card, Button, message, Row, Col } from 'antd';
 import { Speaker, SPEAKER_OPTIONS } from '../state/speaker'
-import React, { useContext, useState } from 'react';
-import { SpeakerContext } from '../state/speaker'
-import { FilterContext, FilterWithIndex } from '../state/filter'
+import React, { useState } from 'react';
+import { useSpeaker, SpeakerAction } from '../state/speaker'
+import { useFilter, FilterWithIndex, FilterAction } from '../state/filter'
 import SpeakerRecord, { SpeakerProps } from '../components/Speakers'
 import PeqRecord, { PeqProps } from '../components/Peq'
-import { VersionContext } from '../state/version'
+import { useVersion, VersionAction } from '../state/version'
 import { applyConfig, saveConfig, getConfiguration, ConfigPayload } from '../services/configuration';
 
 const { Text } = Typography
@@ -62,10 +62,11 @@ interface SpeakerComponentProps {
     getConfigurationProp?: (_: string) => Promise<ConfigPayload>
 }
 const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationProp = getConfiguration }: SpeakerComponentProps) => {
-    const { speakers, speakerConfiguration, setSpeakerConfiguration, setSpeakerBase, updateSpeaker, setSpeakers, } = useContext(SpeakerContext)
-    const { addVersion, setSelectedVersion, selectedVersion, setAppliedVersion, versions } = useContext(VersionContext)
-    const { setFilterBase } = useContext(FilterContext)
-    const { filters, updateFilter, addFilter, removeFilter, setFilters } = useContext(FilterContext)
+    const { state: { speakers, speakerConfiguration }, dispatch: speakerDispatch } = useSpeaker()
+    const { state: { filters }, dispatch: filterDispatch } = useFilter()
+    const { state: { versions, selectedVersion }, dispatch: versionDispatch } = useVersion()
+
+
     const speakerFilters = perSpeakerFilters(filters)
 
     const [messageApi, contextHolder] = message.useMessage()
@@ -83,23 +84,25 @@ const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationPro
 
     const onApply = () => {
         if (selectedVersion) {
-            applyConfig(selectedVersion).then(setAppliedVersion).then(applySuccess).catch(saveFailure)
+            applyConfig(selectedVersion)
+                .then((value) => versionDispatch({ type: VersionAction.SET_APPLIED, value }))
+                .then(applySuccess).catch(saveFailure)
         }
     }
     const onSave = () => saveConfig({ speakers, filters })
-        .then(v => {
-            addVersion(v)
-            setSelectedVersion(v)
+        .then(value => {
+            versionDispatch({ type: VersionAction.ADD, value })
+            versionDispatch({ type: VersionAction.SELECT, value })
         })
         .then(saveSuccess)
         .catch(saveFailure)
 
     const onSelectVersion = (version: string) => {
-        setSelectedVersion(version)
+        versionDispatch({ type: VersionAction.SELECT, value: version })
         getConfigurationProp(version).then(({ filters, speakers }) => {
             if (speakers && speakers.length > 0) {
-                setSpeakers(speakers) //this will trigger a `setSpeakerBase` and `setFilterBase` since it will update the speakerConfiguration
-                setFilters(filters)
+                speakerDispatch({ type: SpeakerAction.SET, value: speakers })
+                filterDispatch({ type: FilterAction.SET, value: filters })
             }
         })
     }
@@ -120,9 +123,9 @@ const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationPro
                 <Select
                     value={speakerConfiguration}
                     onChange={v => {
-                        setSpeakerConfiguration(v)
-                        setSpeakerBase(v)
-                        setFilterBase(v)
+                        speakerDispatch({ type: SpeakerAction.CONFIG, value: v })
+                        speakerDispatch({ type: SpeakerAction.INIT, value: v })
+                        filterDispatch({ type: FilterAction.INIT, value: v })
                     }}
                     options={SPEAKER_OPTIONS.map(({ label }) => ({ value: label, label }))}
                     style={{ width: '100%' }}
@@ -137,11 +140,11 @@ const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationPro
             dataSource={speakers}
             renderItem={(speaker: Speaker) => <SpeakerCard
                 speaker={speaker}
-                updateSpeaker={updateSpeaker}
+                updateSpeaker={(speaker: Speaker) => speakerDispatch({ type: SpeakerAction.UPDATE, value: speaker })}
                 filters={speakerFilters[speaker.speaker]}
-                updateFilter={updateFilter}
-                addFilter={() => addFilter(speaker.speaker)}
-                removeFilter={removeFilter}
+                updateFilter={(filter: FilterWithIndex) => filterDispatch({ type: FilterAction.UPDATE, value: filter })}
+                addFilter={() => filterDispatch({ type: FilterAction.ADD, value: speaker.speaker })}
+                removeFilter={(filter: FilterWithIndex) => filterDispatch({ type: FilterAction.REMOVE, value: filter })}
             />}
         />
         <Space direction="horizontal" size="middle" style={{ display: 'flex', paddingTop: 20 }}>

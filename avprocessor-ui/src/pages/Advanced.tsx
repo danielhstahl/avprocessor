@@ -1,13 +1,14 @@
 import { List, Space, message, Typography } from 'antd';
 import { DeleteOutlined } from '@ant-design/icons'
-import React, { useContext, } from 'react';
-import { Version, VersionContext } from '../state/version'
+import React from 'react';
+import { Version, useVersion, VersionAction } from '../state/version'
 import { deleteConfig } from '../services/configuration';
 const { Text } = Typography
 
 //add ms/ft/meters selection
+//add clear database
 const AdvancedComponent: React.FC = () => {
-    const { versions, removeVersion } = useContext(VersionContext)
+    const { state: { versions }, dispatch: versionDispatch } = useVersion()
 
     const [messageApi, contextHolder] = message.useMessage()
 
@@ -19,7 +20,7 @@ const AdvancedComponent: React.FC = () => {
     }
 
     const onRemove = (version: string) => deleteConfig(version)
-        .then(removeVersion)
+        .then((value) => versionDispatch({ type: VersionAction.REMOVE, value }))
         .then(saveSuccess)
         .catch(saveFailure)
     return <Space direction="vertical" size="middle" style={{ display: 'flex' }}>

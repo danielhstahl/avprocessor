@@ -1,13 +1,13 @@
-import React, { useEffect, useContext } from 'react';
+import React, { useEffect } from 'react';
 import { Layout, Menu } from 'antd';
 import { Outlet, useNavigate, useLocation, useRouteLoaderData } from "react-router-dom";
 import { ROOT_ID } from './utils/constants'
 import Speakers from './pages/Speakers'
 import Advanced from './pages/Advanced'
 import Home from './pages/Home'
-import { SpeakerContext, Speaker } from './state/speaker'
-import { FilterContext, Filter } from './state/filter'
-import { Version, VersionContext } from './state/version'
+import { useSpeaker, Speaker, SpeakerAction } from './state/speaker'
+import { useFilter, Filter, FilterAction } from './state/filter'
+import { Version, VersionAction, useVersion } from './state/version'
 import { getVersions } from './services/versions'
 import { getConfiguration } from './services/configuration'
 const { Header, Footer, Content } = Layout;
@@ -48,36 +48,36 @@ const App: React.FC = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const { versions: fetchedVersions, speakers, filters, appliedVersion } = useRouteLoaderData(ROOT_ID) as VersionConfigurationPayload;
-  const { setVersions, setSelectedVersion } = useContext(VersionContext)
-  const { setSpeakers, setSpeakerBase, speakerConfiguration } = useContext(SpeakerContext)
-  const { setFilters, setFilterBase } = useContext(FilterContext)
+  const { state: { speakerConfiguration }, dispatch: speakerDispatch } = useSpeaker()
+  const { dispatch: versionDispatch } = useVersion()
+  const { dispatch: filterDispatch } = useFilter()
+
   useEffect(() => {
-    setVersions(fetchedVersions)
-  }, [fetchedVersions, setVersions])
+    versionDispatch({ type: VersionAction.INIT, value: fetchedVersions })
+  }, [fetchedVersions, versionDispatch])
 
   useEffect(() => {
     if (appliedVersion) {
-      setSelectedVersion(appliedVersion)
+      versionDispatch({ type: VersionAction.SELECT, value: appliedVersion })
     }
-  }, [appliedVersion, setSelectedVersion]) //only called once on load
+  }, [appliedVersion, versionDispatch]) //only called once on load
 
   useEffect(() => {
     if (speakers) {
-      setSpeakers(speakers)
+      speakerDispatch({ type: SpeakerAction.SET, value: speakers })
     }
-  }, [speakers, setSpeakers])
+  }, [speakers, speakerDispatch])
 
   useEffect(() => {
     if (filters) {
-      setFilters(filters)
+      filterDispatch({ type: FilterAction.SET, value: filters })
     }
-  }, [filters, setFilters])
-
+  }, [filters, filterDispatch])
 
   useEffect(() => {
-    setSpeakerBase(speakerConfiguration)
-    setFilterBase(speakerConfiguration)
-  }, [speakerConfiguration, setSpeakerBase, setFilterBase])
+    speakerDispatch({ type: SpeakerAction.INIT, value: speakerConfiguration })
+    filterDispatch({ type: FilterAction.INIT, value: speakerConfiguration })
+  }, [speakerConfiguration, speakerDispatch, filterDispatch])
 
   return (
     <Layout className="layout" style={{ minHeight: "100vh" }}>

@@ -1,4 +1,4 @@
-import React, { useState, PropsWithChildren } from "react"
+import { createContext, PropsWithChildren, useContext, useReducer } from "react"
 import { SPEAKER_OPTIONS } from "./speaker"
 export type Filter = {
     speaker: string
@@ -11,15 +11,44 @@ export interface FilterWithIndex extends Filter {
     index: number
 }
 
-const initFilters: FilterWithIndex[] = []
-const filterContext = {
-    filters: initFilters,
-    addFilter: (update: string) => { },
-    setFilters: (update: Filter[]) => { },
-    setFilterBase: (update: string) => { },
-    updateFilter: (update: FilterWithIndex) => { },
-    removeFilter: (update: FilterWithIndex) => { }
+const initialState: State = {
+    filters: []
 }
+
+type State = {
+    filters: FilterWithIndex[]
+}
+export enum FilterAction {
+    UPDATE,
+    ADD,
+    REMOVE,
+    INIT,
+    SET,
+}
+
+
+interface ActionInterface {
+    type: FilterAction;
+}
+
+interface FilterActionInterface extends ActionInterface {
+    value: FilterWithIndex;
+}
+
+interface ConfigurationActionInterface extends ActionInterface {
+    value: string;
+}
+interface FiltersActionInterface extends ActionInterface {
+    value: Filter[];
+}
+
+type Action = FilterActionInterface | ConfigurationActionInterface | FiltersActionInterface;
+
+const FilterContext = createContext({
+    state: initialState,
+    dispatch: (_: Action) => { }
+})
+
 const getDefaultSettings: (speaker: string, i: number) => FilterWithIndex = (speaker: string, index: number) => {
     return {
         speaker,
@@ -30,7 +59,6 @@ const getDefaultSettings: (speaker: string, i: number) => FilterWithIndex = (spe
     }
 }
 
-export const FilterContext = React.createContext(filterContext)
 type SpeakerFilter = {
     filters: FilterWithIndex[],
     storeIndeces: {
@@ -38,10 +66,11 @@ type SpeakerFilter = {
     }
 }
 
+const INDEX_START = 1 //could be zero as well, doesnt really matter
 //exported for testing
 export const setFiltersPure = (filters: Filter[]) => filters.reduce<SpeakerFilter>((agg: SpeakerFilter, v: Filter) => {
     const { filters, storeIndeces } = agg
-    const index = storeIndeces[v.speaker] ? storeIndeces[v.speaker] + 1 : 1
+    const index = storeIndeces[v.speaker] === undefined ? INDEX_START : storeIndeces[v.speaker] + 1
     return {
         filters: [...filters, { ...v, index }],
         storeIndeces: { //this is just to keep track of the index per speaker.  Kind of lame, but best I can think of ATM
@@ -51,59 +80,61 @@ export const setFiltersPure = (filters: Filter[]) => filters.reduce<SpeakerFilte
     }
 }, { filters: [], storeIndeces: {} }).filters
 
+//exported for testing
+export const setFilterBase = (speakerConfiguration: string, current_filters: FilterWithIndex[]) => {
+    const baseSpeakers = SPEAKER_OPTIONS.find(s => s.label === speakerConfiguration)
+    return baseSpeakers ? baseSpeakers.speakers.reduce<FilterWithIndex[]>((filters, baseSpeaker) => {
+        const existingFilters = current_filters.filter(s => s.speaker === baseSpeaker.speaker)
+        return existingFilters.length > 0 ? [...filters, ...existingFilters] : [...filters, getDefaultSettings(baseSpeaker.speaker, INDEX_START)]
+    }, []) : undefined
+}
 
-
-export const FilterProviderComponent = ({ children }: PropsWithChildren) => {
-
-    const addFilter = (speaker: string) =>
-        setContext(currentContext => ({
-            ...currentContext,
-            filters: [...currentContext.filters, getDefaultSettings(speaker, currentContext.filters.filter(v => v.speaker === speaker).length)]
-        })
-        )
-    const setFilters = (filters: Filter[]) =>
-        setContext(currentContext => ({
-            ...currentContext,
-            filters: setFiltersPure(filters)
-        })
-        )
-
-    const setFilterBase = (speakerConfiguration: string) => setContext((currentContext) => {
-        const baseSpeakers = SPEAKER_OPTIONS.find(s => s.label === speakerConfiguration)
-        return baseSpeakers ? {
-            ...currentContext,
-            filters: baseSpeakers.speakers.reduce<FilterWithIndex[]>((filters, baseSpeaker) => {
-                const existingFilters = currentContext.filters.filter(s => s.speaker === baseSpeaker.speaker)
-                return existingFilters.length > 0 ? [...filters, ...existingFilters] : [...filters, getDefaultSettings(baseSpeaker.speaker, 0)]
-            }, [])
-        } : currentContext
-    })
-
-    const updateFilter = (filter: FilterWithIndex) => setContext((currentContext) => ({
-        ...currentContext,
-        filters: currentContext.filters.map(v => v.speaker === filter.speaker && v.index === filter.index ? filter : v),
-    }))
-
-    const removeFilter = (filter: FilterWithIndex) => setContext((currentContext) => ({
-        ...currentContext,
-        filters: currentContext.filters.filter(v => !(v.speaker === filter.speaker && v.index === filter.index)),
-    }))
-
-    const initState = {
-        filters: initFilters,
-        addFilter,
-        setFilters,
-        setFilterBase,
-        updateFilter,
-        removeFilter
+export function filterReducer(state: State, action: Action): State {
+    switch (action.type) {
+        case FilterAction.UPDATE:
+            const filterToUpdate = action.value as FilterWithIndex
+            return {
+                filters: state.filters.map(v => v.speaker === filterToUpdate.speaker && v.index === filterToUpdate.index ? filterToUpdate : v),
+            }
+        case FilterAction.ADD:
+            const speaker = action.value as string
+            return {
+                filters: [...state.filters, getDefaultSettings(speaker, state.filters.filter(v => v.speaker === speaker).length + INDEX_START)]
+            }
+        case FilterAction.INIT:
+            const speakerConfiguration = action.value as string
+            return {
+                filters: setFilterBase(speakerConfiguration, state.filters) || state.filters
+            }
+        case FilterAction.REMOVE:
+            const filterToRemove = action.value as FilterWithIndex
+            return {
+                filters: state.filters.filter(v => !(v.speaker === filterToRemove.speaker && v.index === filterToRemove.index)),
+            }
+        case FilterAction.SET:
+            const filters = action.value as Filter[]
+            return {
+                filters: setFiltersPure(filters)
+            }
+        default:
+            return state
     }
-    const [context, setContext] = useState(initState)
+}
 
-
+export const FilterProvider = ({ children }: PropsWithChildren) => {
+    const [state, dispatch] = useReducer(filterReducer, initialState);
 
     return (
-        <FilterContext.Provider value={context}>
+        <FilterContext.Provider value={{ state, dispatch }}>
             {children}
         </FilterContext.Provider>
-    )
+    );
+};
+
+export const useFilter = () => {
+    const context = useContext(FilterContext);
+    if (!context) {
+        throw new Error("useFilter must be used within a FilterProvider");
+    }
+    return context;
 }

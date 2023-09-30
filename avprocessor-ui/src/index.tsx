@@ -8,9 +8,9 @@ import {
   RouterProvider,
 } from "react-router-dom";
 import { ROOT_ID } from './utils/constants'
-import { SpeakerProviderComponent } from './state/speaker';
-import { FilterProviderComponent } from './state/filter'
-import { VersionProviderComponent } from './state/version'
+import { SpeakerProvider } from './state/speaker'
+import { FilterProvider } from './state/filter'
+import { VersionProvider } from './state/version'
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement
 );
@@ -27,13 +27,13 @@ const router = createBrowserRouter([
 ]);
 root.render(
   <React.StrictMode>
-    <SpeakerProviderComponent>
-      <FilterProviderComponent>
-        <VersionProviderComponent>
+    <SpeakerProvider>
+      <FilterProvider>
+        <VersionProvider>
           <RouterProvider router={router} />
-        </VersionProviderComponent>
-      </FilterProviderComponent>
-    </SpeakerProviderComponent>
+        </VersionProvider>
+      </FilterProvider>
+    </SpeakerProvider>
   </React.StrictMode>
 );
 
