@@ -10,6 +10,36 @@
     },
     "query": "INSERT INTO filters (version, filter_index, speaker, freq, gain, q) VALUES (?, ?, ?, ?, ?, ?)"
   },
+  "0bd1fe933c8bb0db0b45a65caef2d0dfe8375966f61afd895a573d46c6f5650a": {
+    "describe": {
+      "columns": [
+        {
+          "name": "version: i32",
+          "ordinal": 0,
+          "type_info": "Int64"
+        },
+        {
+          "name": "version_date",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "applied_version: bool",
+          "ordinal": 2,
+          "type_info": "Int"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Right": 0
+      }
+    },
+    "query": "\n        SELECT \n        t1.version as \"version: i32\", \n        t1.version_date,\n        case when \n            t2.version is null then false \n            else true \n        end as \"applied_version: bool\"\n        FROM versions t1 \n        left join applied_version t2 \n        on t1.version=t2.version\n        "
+  },
   "2b961148b57c7f7579d89eea39492f17bd495a9e7c1b4b28a63ddc0d0080f0d9": {
     "describe": {
       "columns": [
@@ -52,29 +82,15 @@
     },
     "query": "\n        SELECT \n        speaker, \n        crossover as \"crossover?: i32\", \n        distance as \"distance: f32\", \n        gain as \"gain: f32\", \n        is_subwoofer as \"is_subwoofer: bool\"\n        from speakers_settings_for_ui where version=?"
   },
-  "3b20f1e99e5c36f9f229f792e630aeb1423cdfb38cc0372148f8e26e79b0b095": {
+  "588505c0415642ab96ee40f645d0d5758be39f8acd1d9d1a4b9d9fe86afd6ddf": {
     "describe": {
-      "columns": [
-        {
-          "name": "version",
-          "ordinal": 0,
-          "type_info": "Text"
-        },
-        {
-          "name": "applied_version: bool",
-          "ordinal": 1,
-          "type_info": "Int"
-        }
-      ],
-      "nullable": [
-        false,
-        false
-      ],
+      "columns": [],
+      "nullable": [],
       "parameters": {
         "Right": 0
       }
     },
-    "query": "\n        SELECT \n        t1.version, \n        case when \n            t2.version is null then false \n            else true \n        end as \"applied_version: bool\"\n        FROM versions t1 \n        left join applied_version t2 \n        on t1.version=t2.version\n        "
+    "query": "DELETE from applied_version"
   },
   "63a83c98da41b4c64185ac3e3791c22ba5925fbc02b24cae4e4157cf341e7401": {
     "describe": {
@@ -112,6 +128,24 @@
     },
     "query": "SELECT speaker, \n        freq as \"freq: i32\", \n        gain as \"gain: f32\", \n        q as \"q: f32\"\n        from filters where version=?"
   },
+  "73dcb28485c5c178d8c752e328307e639aa7ecb342f508fcc3daebf5b988ba4e": {
+    "describe": {
+      "columns": [
+        {
+          "name": "version!: i32",
+          "ordinal": 0,
+          "type_info": "Int64"
+        }
+      ],
+      "nullable": [
+        true
+      ],
+      "parameters": {
+        "Right": 0
+      }
+    },
+    "query": "SELECT max(version) as \"version!: i32\"  from versions"
+  },
   "74677c083bdec14a79c7304c00e89141a073bc8dcf85ece7f2b5d7c2348b57d6": {
     "describe": {
       "columns": [],
@@ -122,25 +156,7 @@
     },
     "query": "INSERT INTO speakers_for_camilla (\n                version, \n                speaker, \n                crossover, \n                delay, \n                gain, \n                is_subwoofer\n            ) VALUES (?, ?, ?, ?, ?, ?)"
   },
-  "74eeb1a440ff6d34cd877600f13ec239eb74f114cb113cfc6f2d4e4f152a403f": {
-    "describe": {
-      "columns": [
-        {
-          "name": "version!",
-          "ordinal": 0,
-          "type_info": "Text"
-        }
-      ],
-      "nullable": [
-        true
-      ],
-      "parameters": {
-        "Right": 0
-      }
-    },
-    "query": "SELECT max(version) as \"version!\"  from versions"
-  },
-  "75d2deadeab6de5a1541c2f2f154c53e54ec8abfb2dca8e5d2edae9959f2ff38": {
+  "7e1b2f87e6aec84bbd68a042a5f946ffba86ef894597d03cc4fbff2b7ac0cad1": {
     "describe": {
       "columns": [],
       "nullable": [],
@@ -148,7 +164,25 @@
         "Right": 1
       }
     },
-    "query": "INSERT INTO versions (version) VALUES (?)"
+    "query": "INSERT INTO applied_version (version) VALUES (?)"
+  },
+  "84ef8d04723f6ac920f16de8e3028246c37c05cfd0b398baa6bf14a844113163": {
+    "describe": {
+      "columns": [
+        {
+          "name": "version: i32",
+          "ordinal": 0,
+          "type_info": "Int64"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Right": 2
+      }
+    },
+    "query": "INSERT INTO versions (\n            version_date, selected_distance\n        ) VALUES (?, ?) RETURNING version as \"version: i32\""
   },
   "ad52a3310bf8f5538aa81f2294b6c40f5c655340e9c7798fda1ed1c7b8387752": {
     "describe": {

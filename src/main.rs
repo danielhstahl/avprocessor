@@ -4,8 +4,7 @@ use chrono::Utc;
 use rocket::fairing::{self, AdHoc};
 use rocket::response::status::BadRequest;
 use rocket::serde::{json, json::Json, Serialize};
-use rocket::State;
-use rocket::{Build, Rocket};
+use rocket::{Build, Rocket, State};
 use rocket_db_pools::sqlx::{self};
 use rocket_db_pools::{Connection, Database};
 use std::collections::BTreeMap;
@@ -33,7 +32,7 @@ async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
     if let Some(db) = Settings::fetch(&rocket) {
         let _1 = sqlx::query(
             "CREATE TABLE if not exists filters (
-                version text not null, 
+                version integer not null, 
                 filter_index integer not null, 
                 speaker text not null, 
                 freq integer not null, 
@@ -46,7 +45,7 @@ async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
 
         let _2 = sqlx::query(
             "CREATE TABLE if not exists speakers_settings_for_ui (
-            version text not null,
+            version integer not null,
             speaker text not null, 
             crossover integer, 
             distance real not null, 
@@ -72,7 +71,8 @@ async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
 
         let _4 = sqlx::query(
             "CREATE TABLE if not exists versions (
-                version text not null PRIMARY KEY, 
+                version integer not null PRIMARY KEY, 
+                version_date text not null,
                 selected_distance text not null);",
         )
         .execute(&db.0)
@@ -80,7 +80,7 @@ async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
 
         let _5 = sqlx::query(
             "CREATE TABLE if not exists applied_version (
-                version text not null PRIMARY KEY);",
+                version integer not null PRIMARY KEY);",
         )
         .execute(&db.0)
         .await;
@@ -163,8 +163,9 @@ fn convert_processor_settings_to_camilla(
 #[derive(Serialize, sqlx::FromRow)]
 #[serde(crate = "rocket::serde", rename_all = "camelCase")]
 struct Version {
-    version: String,
+    version: i32,
     applied_version: bool,
+    version_date: String,
 }
 #[get("/versions")]
 async fn get_versions(
@@ -174,7 +175,8 @@ async fn get_versions(
         Version,
         r#"
         SELECT 
-        t1.version, 
+        t1.version as "version: i32", 
+        t1.version_date,
         case when 
             t2.version is null then false 
             else true 
@@ -192,21 +194,21 @@ async fn get_versions(
 }
 
 #[derive(sqlx::FromRow)]
-struct MaxVersion {
-    version: String,
+struct ConfigVersion {
+    version: i32,
 }
 #[get("/config/latest")]
 async fn config_latest(
     mut db: Connection<Settings>,
 ) -> Result<Json<ProcessorSettings>, BadRequest<String>> {
-    let version = sqlx::query_as!(
-        MaxVersion,
-        r#"SELECT max(version) as "version!"  from versions"#
+    let ConfigVersion { version } = sqlx::query_as!(
+        ConfigVersion,
+        r#"SELECT max(version) as "version!: i32"  from versions"#
     )
     .fetch_one(&mut *db)
     .await
     .map_err(|e| BadRequest(Some(e.to_string())))?;
-    get_config_from_db(&mut db, &version.version)
+    get_config_from_db(&mut db, version)
         .await
         .map(|v| Json(v))
         .map_err(|e| BadRequest(Some(e.to_string())))
@@ -215,7 +217,7 @@ async fn config_latest(
 #[get("/config/<version>")]
 async fn config_version(
     mut db: Connection<Settings>,
-    version: &str,
+    version: i32,
 ) -> Result<Json<ProcessorSettings>, BadRequest<String>> {
     get_config_from_db(&mut db, version)
         .await
@@ -229,7 +231,7 @@ struct SelectedDistanceWrapper {
 }
 async fn get_config_for_camilla_from_db(
     db: &mut Connection<Settings>,
-    version: &str,
+    version: i32,
 ) -> Result<ProcessorSettingsForCamilla, sqlx::Error> {
     let SelectedDistanceWrapper { selected_distance } = sqlx::query_as!(
         SelectedDistanceWrapper,
@@ -275,7 +277,7 @@ async fn get_config_for_camilla_from_db(
 
 async fn get_config_from_db(
     db: &mut Connection<Settings>,
-    version: &str,
+    version: i32,
 ) -> Result<ProcessorSettings, sqlx::Error> {
     let SelectedDistanceWrapper { selected_distance } = sqlx::query_as!(
         SelectedDistanceWrapper,
@@ -284,7 +286,6 @@ async fn get_config_from_db(
         from versions where version=?"#,
         version
     )
-    //.bind(version)
     .fetch_one(&mut **db)
     .await?;
 
@@ -335,7 +336,7 @@ struct SetConfig {
 #[post("/config/apply/<version>", format = "application/json")]
 async fn apply_config_version(
     mut db: Connection<Settings>,
-    version: &str,
+    version: i32,
     camilla_dsp_url: &State<String>,
 ) -> Result<(), BadRequest<String>> {
     let settings = get_config_for_camilla_from_db(&mut db, version)
@@ -354,12 +355,11 @@ async fn apply_config_version(
         .send(Message::Text(config_as_json))
         .map_err(|e| BadRequest(Some(e.to_string())))?;
 
-    let _ = sqlx::query("DELETE from applied_version")
+    let _ = sqlx::query!("DELETE from applied_version")
         .execute(&mut *db)
         .await
         .map_err(|e| BadRequest(Some(e.to_string())))?;
-    let _ = sqlx::query("INSERT INTO applied_version (version) VALUES (?)")
-        .bind(&version)
+    let _ = sqlx::query!("INSERT INTO applied_version (version) VALUES (?)", version)
         .execute(&mut *db)
         .await
         .map_err(|e| BadRequest(Some(e.to_string())))?;
@@ -426,11 +426,20 @@ fn update_speaker_delays(
 async fn write_configuration(
     mut db: Connection<Settings>,
     settings: Json<ProcessorSettings>,
-) -> Result<String, BadRequest<String>> {
-    let version = Utc::now().to_string();
-    let _ = sqlx::query!("INSERT INTO versions (version) VALUES (?)", version)
-        .execute(&mut *db)
-        .await;
+) -> Result<Json<Version>, BadRequest<String>> {
+    let version_date = Utc::now().to_string();
+    let ConfigVersion { version } = sqlx::query_as!(
+        ConfigVersion,
+        r#"INSERT INTO versions (
+            version_date, selected_distance
+        ) VALUES (?, ?) RETURNING version as "version: i32""#,
+        version_date,
+        settings.selected_distance
+    )
+    .fetch_one(&mut *db)
+    .await
+    .map_err(|e| BadRequest(Some(e.to_string())))?;
+
     for (index, filter) in settings.filters.iter().enumerate() {
         let index_i32 = index as i32;
         let _ = sqlx::query!(
@@ -484,14 +493,17 @@ async fn write_configuration(
         .execute(&mut *db)
         .await;
     }
-
-    Ok(version)
+    Ok(Json(Version {
+        version,
+        applied_version: false,
+        version_date,
+    }))
 }
 
 #[delete("/config/<version>")]
 async fn delete_configuration(
     mut db: Connection<Settings>,
-    version: &str,
+    version: i32,
 ) -> Result<String, BadRequest<String>> {
     let _ = sqlx::query("DELETE FROM versions WHERE version=?")
         .bind(&version)
