@@ -6,6 +6,7 @@ import { SpeakerProvider } from '../state/speaker'
 import { FilterProvider } from '../state/filter'
 import { VersionProvider } from '../state/version'
 import Speaker from './Speakers'
+import { DelayType } from '../state/delay';
 describe("SpeakerComponent", () => {
     test('renders configuration version', async () => {
         const router = createMemoryRouter([
@@ -31,7 +32,7 @@ describe("SpeakerComponent", () => {
 
     });
     test('correct version displays and update made', async () => {
-        const spy = jest.fn((_: string) => Promise.resolve({ speakers: [], filters: [] }))
+        const spy = jest.fn((_: string) => Promise.resolve({ speakers: [], filters: [], selectedDistance: DelayType.FEET }))
         const router = createMemoryRouter([
             {
 

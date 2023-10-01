@@ -8,14 +8,7 @@ type BaseSpeaker = {
     isSubwoofer: boolean
 }
 export interface Speaker extends BaseSpeaker {
-    delay: number
-}
-
-//this needs to be converted to Speaker, delay_slash_distance will hold the distance in meters or feet, or the ms delay
-export interface SpeakerForm extends BaseSpeaker {
-    delay?: number
-    distanceInMeters?: number
-    distanceInFeet?: number
+    distance: number
 }
 
 type SpeakerOption = { label: string, speakers: { speaker: string, isSubwoofer: boolean }[] }[]
@@ -294,32 +287,26 @@ export const SPEAKER_OPTIONS: SpeakerOption = [
         ]
     }
 ]
-const DEFAULT_SPEAKER_SETTINGS = { delay: 0, distanceInMeters: 0, distanceInFeet: 0, gain: 0, crossover: null }
+const DEFAULT_SPEAKER_SETTINGS = { distance: 0, gain: 0, crossover: null }
 
 const initialState: State = {
     speakerConfiguration: SPEAKER_OPTIONS[0].label,
     speakers: [],
 }
 
-const FEET_TO_METER_RATIO = 0.3048
-const convertFeetToMeters = (feet: number) => feet * FEET_TO_METER_RATIO
-const convertMetersToFeet = (meters: number) => meters / FEET_TO_METER_RATIO
-
-
-
 type State = {
     speakerConfiguration: string,
-    speakers: SpeakerForm[]
+    speakers: Speaker[]
 }
 export enum SpeakerAction {
     UPDATE,
     INIT,
     SET,
     CONFIG,
-    UPDATE_DELAY
+    //UPDATE_DELAY
 }
 export type SpeakerDelay = {
-    speaker: SpeakerForm,
+    speaker: Speaker,
     delayType: DelayType,
     delayValue: number
 }
@@ -335,7 +322,7 @@ interface ConfigurationActionInterface extends ActionInterface {
     value: string;
 }
 interface SpeakersActionInterface extends ActionInterface {
-    value: SpeakerForm[];
+    value: Speaker[];
 }
 interface SpeakerDelayActionInterface extends ActionInterface {
     value: SpeakerDelay
@@ -347,7 +334,7 @@ const SpeakerContext = createContext({
     state: initialState,
     dispatch: (_: Action) => { }
 })
-
+/*
 const handleDelay = (delayType: DelayType, delayValue: number) => {
     switch (delayType) {
         case DelayType.FEET:
@@ -375,10 +362,10 @@ const handleDelay = (delayType: DelayType, delayValue: number) => {
                 delay: delayValue
             }
     }
-}
+}*/
 
 //export for testing
-export const setSpeakerBase = (speakers: SpeakerForm[], speakerConfiguration: string) => {
+export const setSpeakerBase = (speakers: Speaker[], speakerConfiguration: string) => {
     const baseSpeakers = SPEAKER_OPTIONS.find(s => s.label === speakerConfiguration)
     return baseSpeakers ? baseSpeakers.speakers.map(baseSpeaker => {
         const existingSpeaker = speakers.find(s => s.speaker === baseSpeaker.speaker)
@@ -386,7 +373,7 @@ export const setSpeakerBase = (speakers: SpeakerForm[], speakerConfiguration: st
     }) : undefined
 }
 //exported for testing
-export const getSpeakerConfigurationFromSpeakers = (speakers: SpeakerForm[]) => {
+export const getSpeakerConfigurationFromSpeakers = (speakers: Speaker[]) => {
     const { numSpeak, numSub } = speakers.reduce((agg, curr) => ({
         numSpeak: agg.numSpeak + (curr.isSubwoofer ? 0 : 1), numSub: agg.numSub + (curr.isSubwoofer ? 1 : 0)
     }), { numSpeak: 0, numSub: 0 })
@@ -399,12 +386,12 @@ export function speakerReducer(state: State, action: Action): State {
             return { ...state, speakerConfiguration: action.value as string }
 
         case SpeakerAction.UPDATE:
-            const speaker = action.value as SpeakerForm
+            const speaker = action.value as Speaker
             return {
                 ...state,
                 speakers: state.speakers.map(v => v.speaker === speaker.speaker ? speaker : v)
             }
-        case SpeakerAction.UPDATE_DELAY:
+        /*case SpeakerAction.UPDATE_DELAY:
             const { speaker: speakerDelay, delayType, delayValue } = action.value as SpeakerDelay
             return {
                 ...state,
@@ -412,7 +399,7 @@ export function speakerReducer(state: State, action: Action): State {
                     ...v,
                     ...handleDelay(delayType, delayValue)
                 } : v)
-            }
+            }*/
         case SpeakerAction.INIT:
             const speakerConfiguration = action.value as string
             return {
@@ -420,7 +407,7 @@ export function speakerReducer(state: State, action: Action): State {
                 speakers: setSpeakerBase(state.speakers, speakerConfiguration) || state.speakers
             }
         case SpeakerAction.SET:
-            const speakers = action.value as SpeakerForm[]
+            const speakers = action.value as Speaker[]
             return {
                 speakers: speakers,
                 speakerConfiguration: getSpeakerConfigurationFromSpeakers(speakers)

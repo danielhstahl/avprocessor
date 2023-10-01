@@ -25,6 +25,7 @@ const tabList = [
 const SpeakerCard = ({
     speaker,
     filters,
+    delayType,
     updateFilter,
     removeFilter,
     updateSpeaker,
@@ -39,7 +40,7 @@ const SpeakerCard = ({
         onTabChange={setActiveKey}
     >
         {activeKey === "speaker" ?
-            <SpeakerRecord speaker={speaker} updateSpeaker={updateSpeaker} /> :
+            <SpeakerRecord speaker={speaker} updateSpeaker={updateSpeaker} delayType={delayType} /> :
             <PeqRecord
                 filters={filters}
                 updateFilter={updateFilter}
@@ -90,7 +91,7 @@ const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationPro
                 .then(applySuccess).catch(saveFailure)
         }
     }
-    const onSave = () => saveConfig({ speakers, filters })
+    const onSave = () => saveConfig({ speakers, filters, selectedDistance: delayType })
         .then(value => {
             versionDispatch({ type: VersionAction.ADD, value })
             versionDispatch({ type: VersionAction.SELECT, value })
@@ -133,13 +134,12 @@ const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationPro
                 />
             </Col>
         </Row>
-
         {contextHolder}
-
         <List
             itemLayout="vertical"
             dataSource={speakers}
             renderItem={(speaker: Speaker) => <SpeakerCard
+                delayType={delayType}
                 speaker={speaker}
                 updateSpeaker={(speaker: Speaker) => speakerDispatch({ type: SpeakerAction.UPDATE, value: speaker })}
                 filters={speakerFilters[speaker.speaker]}

@@ -1,11 +1,12 @@
 import { Speaker } from '../state/speaker'
 import { Filter } from '../state/filter'
+import { DelayType } from '../state/delay'
 
 export const getConfiguration = (version: string) => fetch(`/config/${version}`, {
     method: "GET",
 }).then(r => r.json())
 
-export type ConfigPayload = { speakers: Speaker[], filters: Filter[] }
+export type ConfigPayload = { speakers: Speaker[], filters: Filter[], selectedDistance: DelayType }
 
 export const saveConfig = (body: ConfigPayload) => fetch(`/config`, {
     method: "PUT",

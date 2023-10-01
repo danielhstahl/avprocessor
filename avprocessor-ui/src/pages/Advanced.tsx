@@ -1,9 +1,9 @@
-import { List, Space, message, Typography } from 'antd';
+import { List, message, Typography, Row, Col, Select } from 'antd';
 import { DeleteOutlined } from '@ant-design/icons'
 import React from 'react';
 import { Version, useVersion, VersionAction } from '../state/version'
 import { deleteConfig } from '../services/configuration';
-import { useDelay } from '../state/delay';
+import { DelayAction, useDelay, DelayType } from '../state/delay';
 const { Text } = Typography
 
 //add ms/ft/meters selection
@@ -24,19 +24,30 @@ const AdvancedComponent: React.FC = () => {
         .then((value) => versionDispatch({ type: VersionAction.REMOVE, value }))
         .then(saveSuccess)
         .catch(saveFailure)
-    return <Space direction="vertical" size="middle" style={{ display: 'flex' }}>
+    return <>
         {contextHolder}
-        <List
-            itemLayout="horizontal"
-            dataSource={versions}
-            renderItem={(version: Version) => <List.Item
-                actions={[<DeleteOutlined onClick={() => onRemove(version.version)} />]}
-            >
-                <Text strong={version.appliedVersion}>{`Version: ${version.version} ${version.appliedVersion ? "(Currently applied)" : ""}`}</Text>
+        <Row>
+            <Col xs={24} md={8}>
+                <List
+                    itemLayout="horizontal"
+                    dataSource={versions}
+                    renderItem={(version: Version) => <List.Item
+                        actions={[<DeleteOutlined onClick={() => onRemove(version.version)} />]}
+                    >
+                        <Text strong={version.appliedVersion}>{`Version: ${version.version} ${version.appliedVersion ? "(Currently applied)" : ""}`}</Text>
 
-            </List.Item>}
-        />
-    </Space>
+                    </List.Item>}
+                />
+            </Col>
+            <Col xs={24} md={8}>
+                <Select
+                    value={delayType}
+                    onChange={v => delayTypeDispatch({ type: DelayAction.UPDATE, value: v })}
+                    options={Object.keys(DelayType).map(v => ({ value: v, label: v }))}
+                    style={{ width: '100%' }} />
+            </Col>
+        </Row>
+    </>
 }
 
 export default AdvancedComponent;

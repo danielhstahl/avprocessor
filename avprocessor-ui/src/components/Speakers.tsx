@@ -1,15 +1,15 @@
 import { Space, Typography, InputNumber, Row, Col, Switch } from 'antd';
 import { floatFormatter, intFormatter } from '../utils/inputParsers';
-import { Speaker, SpeakerDelay } from '../state/speaker'
+import { Speaker } from '../state/speaker'
 import { DelayType } from '../state/delay';
 const { Text } = Typography
 
 
-export type SpeakerProps = {
+type PartialProps = {
     speaker: Speaker,
     updateSpeaker: (speaker: Speaker) => void
 }
-const CrossoverAction = ({ speaker, updateSpeaker }: SpeakerProps) => {
+const CrossoverAction = ({ speaker, updateSpeaker }: PartialProps) => {
     return <Space direction="horizontal" size="middle" >
         <Text>Crossover:</Text>
         <Switch checked={speaker.crossover !== null} onChange={v => updateSpeaker({ ...speaker, crossover: v ? 0 : null })} />
@@ -24,30 +24,23 @@ const CrossoverAction = ({ speaker, updateSpeaker }: SpeakerProps) => {
     </Space>
 }
 
-interface DelayProps extends SpeakerDelay {
-    updateSpeakerDelay: (_: SpeakerDelay) => void
+export interface SpeakerProps extends PartialProps {
+    delayType: DelayType
 }
-const DelayAction = ({ speaker, updateSpeakerDelay, delayType }: DelayProps) => {
-    let value
+const DelayAction = ({ speaker, updateSpeaker, delayType }: SpeakerProps) => {
+    let title
     switch (delayType) {
-        case DelayType.FEET:
-            value = speaker.distanceInFeet
-            break
-        case DelayType.METERS:
-            value = speaker.distanceInMeters
-            break
         case DelayType.MS:
-            value = speaker.delay
+            title = "Delay:"
             break
         default:
-            value = speaker.delay
-            break
+            title = "Distance:"
     }
     return <Space direction="horizontal" size="middle" >
-        <Text>Delay:</Text>
+        <Text>{title}</Text>
         <InputNumber
-            value={value}
-            onChange={v => v !== null && updateSpeakerDelay({ speaker, delayValue: v, delayType })}
+            value={speaker.distance}
+            onChange={v => v !== null && updateSpeaker({ ...speaker, distance: v })}
             min={0}
             max={1000}
             step="0.5"
@@ -56,7 +49,7 @@ const DelayAction = ({ speaker, updateSpeakerDelay, delayType }: DelayProps) => 
     </Space>
 }
 
-const TrimAction = ({ speaker, updateSpeaker }: SpeakerProps) => {
+const TrimAction = ({ speaker, updateSpeaker }: PartialProps) => {
     return <Space direction="horizontal" size="middle" >
         <Text>Trim:</Text>
         <InputNumber
@@ -69,10 +62,10 @@ const TrimAction = ({ speaker, updateSpeaker }: SpeakerProps) => {
     </Space>
 }
 
-const SpeakerRecord = ({ speaker, updateSpeaker, updateSpeakerFilter }: SpeakerProps) => {
+const SpeakerRecord = ({ speaker, updateSpeaker, delayType }: SpeakerProps) => {
     return <Row style={{ minHeight: 100 }} justify="space-evenly">
         <Col xs={8}>{!speaker.isSubwoofer ? <CrossoverAction speaker={speaker} updateSpeaker={updateSpeaker} /> : <div></div>}</Col>
-        <Col xs={8}><DelayAction speaker={speaker} updateSpeaker={updateSpeaker} /></Col>
+        <Col xs={8}><DelayAction speaker={speaker} updateSpeaker={updateSpeaker} delayType={delayType} /></Col>
         <Col xs={8}><TrimAction speaker={speaker} updateSpeaker={updateSpeaker} /></Col>
     </Row >
 }
