@@ -7,7 +7,7 @@ pub struct ProcessorSettingsForCamilla {
 }
 
 #[derive(Serialize, Deserialize)]
-#[serde(crate = "rocket::serde")]
+#[serde(crate = "rocket::serde", rename_all = "camelCase")]
 pub struct ProcessorSettings {
     pub filters: Vec<Filter>,
     pub speakers: Vec<SpeakerForUI>,
@@ -24,8 +24,7 @@ pub struct Speaker {
 }
 
 #[derive(Serialize, Deserialize, Debug, sqlx::Type)]
-#[serde(crate = "rocket::serde")]
-#[serde(untagged)]
+#[serde(crate = "rocket::serde", rename_all = "lowercase")]
 pub enum SelectedDistanceType {
     MS,
     FEET,
