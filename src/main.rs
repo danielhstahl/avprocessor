@@ -504,20 +504,27 @@ async fn write_configuration(
 async fn delete_configuration(
     mut db: Connection<Settings>,
     version: i32,
-) -> Result<String, BadRequest<String>> {
-    let _ = sqlx::query("DELETE FROM versions WHERE version=?")
-        .bind(&version)
+) -> Result<(), BadRequest<String>> {
+    let _ = sqlx::query!("DELETE FROM versions WHERE version=?", version)
         .execute(&mut *db)
         .await;
-    let _ = sqlx::query("DELETE FROM filters WHERE version=?")
-        .bind(&version)
+    let _ = sqlx::query!("DELETE FROM filters WHERE version=?", version)
         .execute(&mut *db)
         .await;
-    let _ = sqlx::query("DELETE FROM speakers WHERE version=?")
-        .bind(&version)
+    let _ = sqlx::query!(
+        "DELETE FROM speakers_settings_for_ui WHERE version=?",
+        version
+    )
+    .execute(&mut *db)
+    .await;
+    let _ = sqlx::query!("DELETE FROM speakers_for_camilla WHERE version=?", version)
         .execute(&mut *db)
         .await;
-    Ok(version.to_string())
+
+    let _ = sqlx::query!("DELETE FROM applied_version WHERE version=?", version)
+        .execute(&mut *db)
+        .await;
+    Ok(())
 }
 
 #[launch]
