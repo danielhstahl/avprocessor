@@ -7,7 +7,7 @@ import SpeakerRecord, { SpeakerProps } from '../components/Speakers'
 import PeqRecord, { PeqProps } from '../components/Peq'
 import { useVersion, VersionAction } from '../state/version'
 import { applyConfig, saveConfig, getConfiguration, ConfigPayload } from '../services/configuration';
-import { useDelay } from '../state/delay';
+import { DelayAction, useDelay } from '../state/delay';
 
 const { Text } = Typography
 
@@ -67,7 +67,7 @@ const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationPro
     const { state: { speakers, speakerConfiguration }, dispatch: speakerDispatch } = useSpeaker()
     const { state: { filters }, dispatch: filterDispatch } = useFilter()
     const { state: { versions, selectedVersion }, dispatch: versionDispatch } = useVersion()
-    const { state: { delayType } } = useDelay()
+    const { state: { delayType }, dispatch: delayDispatch } = useDelay()
 
     const speakerFilters = perSpeakerFilters(filters)
 
@@ -101,10 +101,11 @@ const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationPro
 
     const onSelectVersion = (version: number) => {
         versionDispatch({ type: VersionAction.SELECT, value: version })
-        getConfigurationProp(version).then(({ filters, speakers }) => {
+        getConfigurationProp(version).then(({ filters, speakers, selectedDistance }) => {
             if (speakers && speakers.length > 0) {
                 speakerDispatch({ type: SpeakerAction.SET, value: speakers })
                 filterDispatch({ type: FilterAction.SET, value: filters })
+                delayDispatch({ type: DelayAction.UPDATE, value: selectedDistance })
             }
         })
     }
@@ -115,7 +116,7 @@ const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationPro
             </Col>
             <Col xs={18}>
                 <Select value={selectedVersion} onChange={onSelectVersion} options={versions.map(({ version, versionDate }) => ({
-                    value: version, label: `${version}, ${versionDate}`
+                    value: version, label: `${version} (${versionDate})`
                 }))} style={{ width: '100%' }} />
             </Col>
         </Row>

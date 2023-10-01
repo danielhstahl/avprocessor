@@ -5,17 +5,16 @@ import { ROOT_ID } from './utils/constants'
 import Speakers from './pages/Speakers'
 import Advanced from './pages/Advanced'
 import Home from './pages/Home'
-import { useSpeaker, Speaker, SpeakerAction } from './state/speaker'
-import { useFilter, Filter, FilterAction } from './state/filter'
+import { useSpeaker, SpeakerAction } from './state/speaker'
+import { useFilter, FilterAction } from './state/filter'
 import { Version, VersionAction, useVersion } from './state/version'
 import { getVersions } from './services/versions'
-import { getConfiguration } from './services/configuration'
+import { ConfigPayload, getConfiguration } from './services/configuration'
+import { DelayAction, useDelay } from './state/delay';
 const { Header, Footer, Content } = Layout;
 
-type VersionConfigurationPayload = {
+interface VersionConfigurationPayload extends ConfigPayload {
   versions: Version[],
-  speakers: Speaker[],
-  filters: Filter[],
   appliedVersion: number
 }
 
@@ -24,7 +23,7 @@ export const loader = () => {
   return getVersions().then(versions => {
     if (versions.length > 0) {
       const appliedVersion = deriveAppliedVersion(versions)
-      return getConfiguration(appliedVersion).then(({ speakers, filters }) => ({ versions, speakers, filters, appliedVersion }))
+      return getConfiguration(appliedVersion).then(({ speakers, filters, selectedDistance }) => ({ versions, speakers, filters, appliedVersion, selectedDistance }))
     }
     else {
       return {
@@ -47,10 +46,11 @@ export const MenuItems = [
 const App: React.FC = () => {
   const navigate = useNavigate()
   const location = useLocation()
-  const { versions: fetchedVersions, speakers, filters, appliedVersion } = useRouteLoaderData(ROOT_ID) as VersionConfigurationPayload;
+  const { versions: fetchedVersions, speakers, filters, appliedVersion, selectedDistance } = useRouteLoaderData(ROOT_ID) as VersionConfigurationPayload;
   const { state: { speakerConfiguration }, dispatch: speakerDispatch } = useSpeaker()
   const { dispatch: versionDispatch } = useVersion()
   const { dispatch: filterDispatch } = useFilter()
+  const { dispatch: delayDispatch } = useDelay()
 
   useEffect(() => {
     versionDispatch({ type: VersionAction.INIT, value: fetchedVersions })
@@ -59,8 +59,14 @@ const App: React.FC = () => {
   useEffect(() => {
     if (appliedVersion) {
       versionDispatch({ type: VersionAction.SELECT, value: appliedVersion })
+
     }
   }, [appliedVersion, versionDispatch]) //only called once on load
+
+  useEffect(() => {
+    delayDispatch({ type: DelayAction.UPDATE, value: selectedDistance })
+  }, [selectedDistance, delayDispatch])
+
 
   useEffect(() => {
     if (speakers) {

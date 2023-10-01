@@ -63,12 +63,12 @@ describe("SpeakerComponent", () => {
         if (select) {
             await act(async () => await userEvent.click(select))
         }
-        const initSelect = await waitFor(() => screen.getByTitle('1, 2023'))
+        const initSelect = await waitFor(() => screen.getByTitle('1 (2023)'))
         expect(initSelect.className).toContain("ant-select-item-option-active")
 
-        await waitFor(() => screen.getByTitle('2, 2023'))
-        await act(async () => await userEvent.click(screen.getByTitle('2, 2023')))
-        const secondSelect = await waitFor(() => screen.getAllByTitle('2, 2023').at(1))
+        await waitFor(() => screen.getByTitle('2 (2023)'))
+        await act(async () => await userEvent.click(screen.getByTitle('2 (2023)')))
+        const secondSelect = await waitFor(() => screen.getAllByTitle('2 (2023)').at(1))
         expect(secondSelect?.className).toContain("ant-select-item-option-active")
 
         expect(spy).toHaveBeenCalledWith(2)
