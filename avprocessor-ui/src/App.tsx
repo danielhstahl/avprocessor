@@ -16,7 +16,7 @@ type VersionConfigurationPayload = {
   versions: Version[],
   speakers: Speaker[],
   filters: Filter[],
-  appliedVersion: string
+  appliedVersion: number
 }
 
 export const deriveAppliedVersion = (versions: Version[]) => (versions.find(v => v.appliedVersion) || versions[versions.length - 1]).version

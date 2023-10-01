@@ -32,7 +32,7 @@ describe("SpeakerComponent", () => {
 
     });
     test('correct version displays and update made', async () => {
-        const spy = jest.fn((_: string) => Promise.resolve({ speakers: [], filters: [], selectedDistance: DelayType.FEET }))
+        const spy = jest.fn((_: number) => Promise.resolve({ speakers: [], filters: [], selectedDistance: DelayType.FEET }))
         const router = createMemoryRouter([
             {
 
@@ -50,8 +50,8 @@ describe("SpeakerComponent", () => {
             <FilterProvider>
                 <VersionProvider versionState={{
                     versions: [
-                        { version: "0.1", appliedVersion: true },
-                        { version: "0.2", appliedVersion: true }
+                        { version: 1, appliedVersion: true, versionDate: "2023" },
+                        { version: 2, appliedVersion: true, versionDate: "2023" }
                     ]
                 }}>
                     <RouterProvider router={router} />
@@ -63,14 +63,14 @@ describe("SpeakerComponent", () => {
         if (select) {
             await act(async () => await userEvent.click(select))
         }
-        const initSelect = await waitFor(() => screen.getByTitle('0.1'))
+        const initSelect = await waitFor(() => screen.getByTitle('1, 2023'))
         expect(initSelect.className).toContain("ant-select-item-option-active")
 
-        await waitFor(() => screen.getByTitle('0.2'))
-        await act(async () => await userEvent.click(screen.getByTitle('0.2')))
-        const secondSelect = await waitFor(() => screen.getAllByTitle('0.2').at(1))
+        await waitFor(() => screen.getByTitle('2, 2023'))
+        await act(async () => await userEvent.click(screen.getByTitle('2, 2023')))
+        const secondSelect = await waitFor(() => screen.getAllByTitle('2, 2023').at(1))
         expect(secondSelect?.className).toContain("ant-select-item-option-active")
 
-        expect(spy).toHaveBeenCalledWith("0.2")
+        expect(spy).toHaveBeenCalledWith(2)
     });
 })

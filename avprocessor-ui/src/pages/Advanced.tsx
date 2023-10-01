@@ -12,8 +12,6 @@ const AdvancedComponent: React.FC = () => {
     const { state: { delayType }, dispatch: delayTypeDispatch } = useDelay()
     const [messageApi, contextHolder] = message.useMessage()
 
-    console.log(delayType)
-
     const saveSuccess = () => {
         messageApi.success("Configuration Deleted")
     }
@@ -21,8 +19,8 @@ const AdvancedComponent: React.FC = () => {
         messageApi.error("Something went wrong!")
     }
 
-    const onRemove = (version: string) => deleteConfig(version)
-        .then((value) => versionDispatch({ type: VersionAction.REMOVE, value }))
+    const onRemove = (version: number) => deleteConfig(version)
+        .then(() => versionDispatch({ type: VersionAction.REMOVE, value: version }))
         .then(saveSuccess)
         .catch(saveFailure)
     return <>
@@ -36,7 +34,7 @@ const AdvancedComponent: React.FC = () => {
                     renderItem={(version: Version) => <List.Item
                         actions={[<DeleteOutlined onClick={() => onRemove(version.version)} />]}
                     >
-                        <Text strong={version.appliedVersion}>{`Version: ${version.version} ${version.appliedVersion ? "(Currently applied)" : ""}`}</Text>
+                        <Text strong={version.appliedVersion}>{`Version: ${version.version} (${version.versionDate}) ${version.appliedVersion ? "(Currently applied)" : ""}`}</Text>
 
                     </List.Item>}
                 />

@@ -17,7 +17,7 @@ describe("UI", () => {
         element: <App />,
         id: ROOT_ID,
         errorElement: <p>Uh oh, 404</p>,
-        loader: () => ({ versions: [{ version: "0.1", appliedVersion: true }], speakers: undefined, filters: undefined, appliedVersion: undefined }),
+        loader: () => ({ versions: [{ version: 1, appliedVersion: true, versionDate: "2023" }], speakers: undefined, filters: undefined, appliedVersion: undefined }),
         children: [{ path: "/", element: <div>Hello</div> }]
       },
 
@@ -94,12 +94,12 @@ describe("UI", () => {
 
 describe("deriveAppliedVersion", () => {
   it("gets applied version if exists", () => {
-    expect(deriveAppliedVersion([{ version: "0.2", appliedVersion: true }])).toEqual("0.2")
+    expect(deriveAppliedVersion([{ version: 2, appliedVersion: true, versionDate: "2023" }])).toEqual(2)
   })
   it("gets applied version if exists with more versions", () => {
-    expect(deriveAppliedVersion([{ version: "0.1", appliedVersion: true }, { version: "0.2", appliedVersion: false }])).toEqual("0.1")
+    expect(deriveAppliedVersion([{ version: 1, appliedVersion: true, versionDate: "2023" }, { version: 2, appliedVersion: false, versionDate: "2023" }])).toEqual(1)
   })
   it("returns last element if nothing applied", () => {
-    expect(deriveAppliedVersion([{ version: "0.1", appliedVersion: false }, { version: "0.2", appliedVersion: false }])).toEqual("0.2")
+    expect(deriveAppliedVersion([{ version: 1, appliedVersion: false, versionDate: "2023" }, { version: 2, appliedVersion: false, versionDate: "2023" }])).toEqual(2)
   })
 })

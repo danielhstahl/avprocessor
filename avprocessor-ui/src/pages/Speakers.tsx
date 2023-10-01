@@ -61,7 +61,7 @@ const perSpeakerFilters: (filters: FilterWithIndex[]) => SpeakerFilter = (filter
     }, {})
 }
 interface SpeakerComponentProps {
-    getConfigurationProp?: (_: string) => Promise<ConfigPayload>
+    getConfigurationProp?: (_: number) => Promise<ConfigPayload>
 }
 const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationProp = getConfiguration }: SpeakerComponentProps) => {
     const { state: { speakers, speakerConfiguration }, dispatch: speakerDispatch } = useSpeaker()
@@ -87,19 +87,19 @@ const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationPro
     const onApply = () => {
         if (selectedVersion) {
             applyConfig(selectedVersion)
-                .then((value) => versionDispatch({ type: VersionAction.SET_APPLIED, value }))
+                .then(() => versionDispatch({ type: VersionAction.SET_APPLIED, value: selectedVersion }))
                 .then(applySuccess).catch(saveFailure)
         }
     }
     const onSave = () => saveConfig({ speakers, filters, selectedDistance: delayType })
         .then(value => {
             versionDispatch({ type: VersionAction.ADD, value })
-            versionDispatch({ type: VersionAction.SELECT, value })
+            versionDispatch({ type: VersionAction.SELECT, value: value.version })
         })
         .then(saveSuccess)
         .catch(saveFailure)
 
-    const onSelectVersion = (version: string) => {
+    const onSelectVersion = (version: number) => {
         versionDispatch({ type: VersionAction.SELECT, value: version })
         getConfigurationProp(version).then(({ filters, speakers }) => {
             if (speakers && speakers.length > 0) {
@@ -114,7 +114,9 @@ const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationPro
                 <Text strong>Select Configuration Version</Text>
             </Col>
             <Col xs={18}>
-                <Select value={selectedVersion} onChange={onSelectVersion} options={versions.map(({ version }) => ({ value: version, label: version }))} style={{ width: '100%' }} />
+                <Select value={selectedVersion} onChange={onSelectVersion} options={versions.map(({ version, versionDate }) => ({
+                    value: version, label: `${version}, ${versionDate}`
+                }))} style={{ width: '100%' }} />
             </Col>
         </Row>
         <Row style={{ paddingTop: 20, paddingBottom: 20 }}>
