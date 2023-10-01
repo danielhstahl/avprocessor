@@ -137,12 +137,6 @@ pub fn split_inputs<'a>(
             }
             track_index += 1;
         }
-        //only one of these for now
-        /*for i in speakers_exclude_sub..(speakers_exclude_sub + input_subwoofers) {
-            //passthrough_channels.push(hold_indeces.len());
-            //hold_indeces.push(i);
-            channel_mapping.insert(&speaker.speaker, (speaker_index, vec![track_index]));
-        }*/
 
         let channels = ChannelCount {
             num_in_channel: speakers_exclude_sub + input_subwoofers,
@@ -163,18 +157,6 @@ pub fn split_inputs<'a>(
             })
             .flatten()
             .collect();
-        /*let mapping = hold_indeces
-        .iter()
-        .enumerate()
-        .map(|(destination_index, source_index)| Mapping {
-            dest: destination_index,
-            sources: vec![Source {
-                channel: *source_index,
-                gain: 0,
-                inverted: false,
-            }],
-        })
-        .collect();*/
 
         return Some((
             Mixer { channels, mapping },
@@ -190,21 +172,13 @@ pub fn split_inputs<'a>(
 pub fn combine_inputs(
     speaker_counts: &SpeakerCounts,
     split_mixer: &Mixer,
-    //crossover_channels: &CrossoverChannels,
     output_channel_mapping: &BTreeMap<&String, (usize, Vec<usize>)>,
-    //speakers: &[Speaker],
 ) -> Mixer {
     let SpeakerCounts {
         speakers_exclude_sub,
         output_subwoofers,
         ..
     } = *speaker_counts;
-
-    /* let CrossoverChannels {
-        subwoofer_channels,
-        speaker_channels,
-        passthrough_channels,
-    } = crossover_channels;*/
 
     let mapping = output_channel_mapping
         .iter()
@@ -221,79 +195,9 @@ pub fn combine_inputs(
         })
         .collect();
     let channels = ChannelCount {
-        num_in_channel: split_mixer.channels.num_out_channel, //split_input.channels.num_out_channel,
-        num_out_channel: speakers_exclude_sub + output_subwoofers, //split each input speaker to go to subwoofer channel
+        num_in_channel: split_mixer.channels.num_out_channel,
+        num_out_channel: speakers_exclude_sub + output_subwoofers,
     };
-    /*speakers
-    .iter()
-    .enumerate()
-    .filter(|(_, v)| v.is_subwoofer)
-    .map(|(i, _)| Mapping {
-        dest: i,
-        sources: subwoofer_channels
-            .iter()
-            .map(|index| Source {
-                channel: *index,
-                gain: 0,
-                inverted: false,
-            })
-            .chain(std::iter::once(Source {
-                channel: channels.num_in_channel - 1, //source is last index of previous mixer
-                gain: 0,
-                inverted: false,
-            }))
-            .collect(),
-    })*/
-
-    /*speakers
-    .iter()
-    .enumerate()
-    .filter(|(_, v)| v.is_subwoofer)
-    .map(|(i, _)| Mapping {
-        dest: i,
-        sources: subwoofer_channels
-            .iter()
-            .map(|index| Source {
-                channel: *index,
-                gain: 0,
-                inverted: false,
-            })
-            .chain(std::iter::once(Source {
-                channel: channels.num_in_channel - 1, //source is last index of previous mixer
-                gain: 0,
-                inverted: false,
-            }))
-            .collect(),
-    })
-    .chain(
-        speaker_channels
-            .iter()
-            .zip(
-                speakers
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, v)| !v.is_subwoofer)
-                    .map(|(i, _)| i),
-            )
-            .map(|(source_index, dest_index)| Mapping {
-                dest: dest_index,
-                sources: vec![Source {
-                    channel: *source_index,
-                    gain: 0,
-                    inverted: false,
-                }],
-            }),
-    )
-    .chain(passthrough_channels.iter().map(|index| Mapping {
-        dest: *index,
-        sources: vec![Source {
-            channel: *index,
-            gain: 0,
-            inverted: false,
-        }],
-    }))
-    .collect();*/
-
     Mixer { channels, mapping }
 }
 
@@ -306,7 +210,6 @@ mod tests {
     use super::split_inputs;
     use super::ChannelCount;
     use super::Mixer;
-    //use super::CrossoverChannels;
     use crate::processor::Speaker;
 
     #[test]
@@ -315,28 +218,28 @@ mod tests {
             Speaker {
                 speaker: "l".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "r".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sl".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sr".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
@@ -352,35 +255,35 @@ mod tests {
             Speaker {
                 speaker: "l".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "r".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sl".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sr".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sub1".to_string(),
                 crossover: None,
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: true,
                 gain: 2.0,
             },
@@ -396,42 +299,42 @@ mod tests {
             Speaker {
                 speaker: "l".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "r".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sl".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sr".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sub1".to_string(),
                 crossover: None,
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: true,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sub2".to_string(),
                 crossover: None,
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: true,
                 gain: 2.0,
             },
@@ -448,28 +351,28 @@ mod tests {
             Speaker {
                 speaker: "l".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "r".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sl".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sr".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
@@ -484,35 +387,35 @@ mod tests {
             Speaker {
                 speaker: "l".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "r".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sl".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sr".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sub1".to_string(),
                 crossover: None,
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: true,
                 gain: 2.0,
             },
@@ -555,35 +458,35 @@ mod tests {
             Speaker {
                 speaker: "l".to_string(),
                 crossover: None, //no subwoofer in mix
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "r".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sl".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sr".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sub1".to_string(),
                 crossover: None,
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: true,
                 gain: 2.0,
             },
@@ -623,35 +526,35 @@ mod tests {
             Speaker {
                 speaker: "l".to_string(),
                 crossover: None, //no subwoofer in mix
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "r".to_string(),
                 crossover: None,
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sl".to_string(),
                 crossover: None,
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sr".to_string(),
                 crossover: None,
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sub1".to_string(),
                 crossover: None,
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: true,
                 gain: 2.0,
             },
@@ -681,42 +584,42 @@ mod tests {
             Speaker {
                 speaker: "l".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "r".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sl".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sr".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sub1".to_string(),
                 crossover: None,
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: true,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sub2".to_string(),
                 crossover: None,
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: true,
                 gain: 2.0,
             },
@@ -759,42 +662,42 @@ mod tests {
             Speaker {
                 speaker: "l".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "r".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "c".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sl".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sr".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sub1".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: true,
                 gain: 2.0,
             },
@@ -850,49 +753,49 @@ mod tests {
             Speaker {
                 speaker: "l".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "r".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "c".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sl".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sr".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sub1".to_string(),
                 crossover: None,
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: true,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sub2".to_string(),
                 crossover: None,
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: true,
                 gain: 2.0,
             },
@@ -950,35 +853,35 @@ mod tests {
             Speaker {
                 speaker: "l".to_string(),
                 crossover: Some(100),
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "r".to_string(),
                 crossover: None,
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "c".to_string(),
                 crossover: None,
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: false,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sub1".to_string(),
                 crossover: None,
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: true,
                 gain: 2.0,
             },
             Speaker {
                 speaker: "sub2".to_string(),
                 crossover: None,
-                delay: 10,
+                delay: 10.0,
                 is_subwoofer: true,
                 gain: 2.0,
             },
