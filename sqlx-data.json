@@ -40,6 +40,16 @@
     },
     "query": "\n        SELECT \n        t1.version as \"version: i32\", \n        t1.version_date,\n        case when \n            t2.version is null then false \n            else true \n        end as \"applied_version: bool\"\n        FROM versions t1 \n        left join applied_version t2 \n        on t1.version=t2.version\n        "
   },
+  "11c31ab7ddf7a84eebbfe75205f76c716e4f1533bcbb002dddd8e75edc610bc7": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "DELETE FROM applied_version WHERE version=?"
+  },
   "2b961148b57c7f7579d89eea39492f17bd495a9e7c1b4b28a63ddc0d0080f0d9": {
     "describe": {
       "columns": [
@@ -81,6 +91,16 @@
       }
     },
     "query": "\n        SELECT \n        speaker, \n        crossover as \"crossover?: i32\", \n        distance as \"distance: f32\", \n        gain as \"gain: f32\", \n        is_subwoofer as \"is_subwoofer: bool\"\n        from speakers_settings_for_ui where version=?"
+  },
+  "2e9ef73094be7389b196ef89af15743cd781de5eb281d2022ed47eeebc388ff9": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "DELETE FROM versions WHERE version=?"
   },
   "588505c0415642ab96ee40f645d0d5758be39f8acd1d9d1a4b9d9fe86afd6ddf": {
     "describe": {
@@ -134,7 +154,7 @@
         {
           "name": "version!: i32",
           "ordinal": 0,
-          "type_info": "Int64"
+          "type_info": "Int"
         }
       ],
       "nullable": [
@@ -184,6 +204,26 @@
     },
     "query": "INSERT INTO versions (\n            version_date, selected_distance\n        ) VALUES (?, ?) RETURNING version as \"version: i32\""
   },
+  "880b2b8a39443621b044ddb5f7a22f5fbe5b2abde3e628f001d3b82c88e806bb": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "DELETE FROM speakers_settings_for_ui WHERE version=?"
+  },
+  "90fc454b16b905f1ca7ffe9986d743bd5c0ea0437158f932d7d114f0be2620b4": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "DELETE FROM filters WHERE version=?"
+  },
   "ad52a3310bf8f5538aa81f2294b6c40f5c655340e9c7798fda1ed1c7b8387752": {
     "describe": {
       "columns": [],
@@ -229,6 +269,16 @@
       }
     },
     "query": "SELECT \n        speaker, \n        freq as \"freq: i32\", \n        gain as \"gain: f32\", \n        q as \"q: f32\"\n        from filters where version=?"
+  },
+  "d28b966c0905444faced26654f6b41ef8e78cc5cd872248ffd694fa6738f97e6": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "DELETE FROM speakers_for_camilla WHERE version=?"
   },
   "d48bf6d3a02fd0c8b28060a70246fd9425e816e3a20d14b02294498112f25bf9": {
     "describe": {
