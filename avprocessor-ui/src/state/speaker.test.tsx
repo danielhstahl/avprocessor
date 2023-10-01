@@ -1,4 +1,6 @@
+import { DelayType } from './delay'
 import { SpeakerAction, getSpeakerConfigurationFromSpeakers, setSpeakerBase, speakerReducer } from './speaker'
+
 
 describe("getSpeakerConfigurationFromSpeakers", () => {
     it("returns 4.1 when given 4 speakers and a sub", () => {
@@ -324,6 +326,110 @@ describe("speakerReducer", () => {
             crossover: null,
             delay: 0,
             gain: 0
+        }])
+    })
+    it("sets delays with feet", () => {
+        const results = speakerReducer({
+            speakers: [{
+                speaker: "Left",
+                isSubwoofer: false,
+                crossover: null,
+                delay: 3,
+                gain: 2
+            }],
+            speakerConfiguration: ""
+        }, {
+            type: SpeakerAction.UPDATE_DELAY, value: {
+                speaker: {
+                    speaker: "Left",
+                    isSubwoofer: false,
+                    crossover: 100,
+                    delay: 4,
+                    gain: 2
+                },
+                delayType: DelayType.FEET,
+                delayValue: 3.0
+            }
+        })
+        expect(results.speakers).toEqual([{
+            speaker: "Left",
+            isSubwoofer: false,
+            crossover: 100,
+            delay: 0.0, //zero'd out
+            gain: 2,
+            distanceInMeters: 3.3,
+            distanceInFeet: 3.0
+        }])
+    })
+    it("sets delays with ms", () => {
+        const results = speakerReducer({
+            speakers: [{
+                speaker: "Left",
+                isSubwoofer: false,
+                crossover: null,
+                delay: 3,
+                gain: 2,
+                distanceInMeters: 4,
+                distanceInFeet: 5
+            }],
+            speakerConfiguration: ""
+        }, {
+            type: SpeakerAction.UPDATE_DELAY, value: {
+                speaker: {
+                    speaker: "Left",
+                    isSubwoofer: false,
+                    crossover: 100,
+                    delay: 4,
+                    gain: 2
+                },
+                delayType: DelayType.MS,
+                delayValue: 3.0
+            }
+        })
+        //note that subwoofer 2 is overwritten, speakers are completely reset
+        expect(results.speakers).toEqual([{
+            speaker: "Left",
+            isSubwoofer: false,
+            crossover: 100,
+            delay: 4, //updated
+            gain: 2,
+            distanceInMeters: undefined, //note that original is overwritten
+            distanceInFeet: undefined
+        }])
+    })
+    it("sets delays with meters", () => {
+        const results = speakerReducer({
+            speakers: [{
+                speaker: "Left",
+                isSubwoofer: false,
+                crossover: null,
+                delay: 3,
+                gain: 2,
+                distanceInMeters: 4,
+                distanceInFeet: 5
+            }],
+            speakerConfiguration: ""
+        }, {
+            type: SpeakerAction.UPDATE_DELAY, value: {
+                speaker: {
+                    speaker: "Left",
+                    isSubwoofer: false,
+                    crossover: 100,
+                    delay: 4,
+                    gain: 2
+                },
+                delayType: DelayType.METERS,
+                delayValue: 3.0
+            }
+        })
+        expect(results.speakers).toEqual([{
+            speaker: "Left",
+            isSubwoofer: false,
+            crossover: 100,
+            delay: 0, //zero'd out
+            gain: 2,
+            distanceInMeters: 3.0,
+            distanceInFeet: 5.0
         }])
     })
 })

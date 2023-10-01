@@ -3,13 +3,14 @@ import { DeleteOutlined } from '@ant-design/icons'
 import React from 'react';
 import { Version, useVersion, VersionAction } from '../state/version'
 import { deleteConfig } from '../services/configuration';
+import { useDelay } from '../state/delay';
 const { Text } = Typography
 
 //add ms/ft/meters selection
 //add clear database
 const AdvancedComponent: React.FC = () => {
     const { state: { versions }, dispatch: versionDispatch } = useVersion()
-
+    const { state: { delayType }, dispatch: delayTypeDispatch } = useDelay()
     const [messageApi, contextHolder] = message.useMessage()
 
     const saveSuccess = () => {

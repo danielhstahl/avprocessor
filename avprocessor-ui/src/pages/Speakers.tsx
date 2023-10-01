@@ -7,6 +7,7 @@ import SpeakerRecord, { SpeakerProps } from '../components/Speakers'
 import PeqRecord, { PeqProps } from '../components/Peq'
 import { useVersion, VersionAction } from '../state/version'
 import { applyConfig, saveConfig, getConfiguration, ConfigPayload } from '../services/configuration';
+import { useDelay } from '../state/delay';
 
 const { Text } = Typography
 
@@ -65,7 +66,7 @@ const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationPro
     const { state: { speakers, speakerConfiguration }, dispatch: speakerDispatch } = useSpeaker()
     const { state: { filters }, dispatch: filterDispatch } = useFilter()
     const { state: { versions, selectedVersion }, dispatch: versionDispatch } = useVersion()
-
+    const { state: { delayType } } = useDelay()
 
     const speakerFilters = perSpeakerFilters(filters)
 

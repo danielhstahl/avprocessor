@@ -8,14 +8,13 @@ edition = "2021"
 [dependencies]
 rocket = { version = "=0.5.0-rc.3", features = ["json"] }
 chrono = "0.4.30"
-#serde_yaml = "0.9"
 tungstenite = { version = "0.20.0" }
 url = { version = "2.1.0" }
 
 [dependencies.sqlx]
 version = "0.6"
 default-features = false
-features = ["macros"]
+features = ["macros", "offline"]
 
 [dependencies.rocket_db_pools]
 version = "=0.1.0-rc.3"

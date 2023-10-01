@@ -9,3 +9,8 @@ curl -X GET http://127.0.0.1:8000/config/latest
 
 
 #plotcamillaconf test.yml
+
+Install sqlx cli to enable rust to compile without a database.  This needs to be done after creating the tables so it can compile the binary and extract the metadata.
+`cargo install --version 0.6.3 sqlx-cli`
+`cargo sqlx prepare`
+This creates the sqlx-data.json which allows the binary to be recompiled without the actual database existing.

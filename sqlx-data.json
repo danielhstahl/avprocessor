@@ -1,0 +1,259 @@
+{
+  "db": "SQLite",
+  "005d3a5e1e5043eca87a470f36c2683a5e5d912d1180b8819c212bd09939bb24": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 6
+      }
+    },
+    "query": "INSERT INTO filters (version, filter_index, speaker, freq, gain, q) VALUES (?, ?, ?, ?, ?, ?)"
+  },
+  "2b961148b57c7f7579d89eea39492f17bd495a9e7c1b4b28a63ddc0d0080f0d9": {
+    "describe": {
+      "columns": [
+        {
+          "name": "speaker",
+          "ordinal": 0,
+          "type_info": "Text"
+        },
+        {
+          "name": "crossover?: i32",
+          "ordinal": 1,
+          "type_info": "Int64"
+        },
+        {
+          "name": "distance: f32",
+          "ordinal": 2,
+          "type_info": "Float"
+        },
+        {
+          "name": "gain: f32",
+          "ordinal": 3,
+          "type_info": "Float"
+        },
+        {
+          "name": "is_subwoofer: bool",
+          "ordinal": 4,
+          "type_info": "Int64"
+        }
+      ],
+      "nullable": [
+        false,
+        true,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "\n        SELECT \n        speaker, \n        crossover as \"crossover?: i32\", \n        distance as \"distance: f32\", \n        gain as \"gain: f32\", \n        is_subwoofer as \"is_subwoofer: bool\"\n        from speakers_settings_for_ui where version=?"
+  },
+  "3b20f1e99e5c36f9f229f792e630aeb1423cdfb38cc0372148f8e26e79b0b095": {
+    "describe": {
+      "columns": [
+        {
+          "name": "version",
+          "ordinal": 0,
+          "type_info": "Text"
+        },
+        {
+          "name": "applied_version: bool",
+          "ordinal": 1,
+          "type_info": "Int"
+        }
+      ],
+      "nullable": [
+        false,
+        false
+      ],
+      "parameters": {
+        "Right": 0
+      }
+    },
+    "query": "\n        SELECT \n        t1.version, \n        case when \n            t2.version is null then false \n            else true \n        end as \"applied_version: bool\"\n        FROM versions t1 \n        left join applied_version t2 \n        on t1.version=t2.version\n        "
+  },
+  "63a83c98da41b4c64185ac3e3791c22ba5925fbc02b24cae4e4157cf341e7401": {
+    "describe": {
+      "columns": [
+        {
+          "name": "speaker",
+          "ordinal": 0,
+          "type_info": "Text"
+        },
+        {
+          "name": "freq: i32",
+          "ordinal": 1,
+          "type_info": "Int64"
+        },
+        {
+          "name": "gain: f32",
+          "ordinal": 2,
+          "type_info": "Float"
+        },
+        {
+          "name": "q: f32",
+          "ordinal": 3,
+          "type_info": "Float"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "SELECT speaker, \n        freq as \"freq: i32\", \n        gain as \"gain: f32\", \n        q as \"q: f32\"\n        from filters where version=?"
+  },
+  "74677c083bdec14a79c7304c00e89141a073bc8dcf85ece7f2b5d7c2348b57d6": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 6
+      }
+    },
+    "query": "INSERT INTO speakers_for_camilla (\n                version, \n                speaker, \n                crossover, \n                delay, \n                gain, \n                is_subwoofer\n            ) VALUES (?, ?, ?, ?, ?, ?)"
+  },
+  "74eeb1a440ff6d34cd877600f13ec239eb74f114cb113cfc6f2d4e4f152a403f": {
+    "describe": {
+      "columns": [
+        {
+          "name": "version!",
+          "ordinal": 0,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        true
+      ],
+      "parameters": {
+        "Right": 0
+      }
+    },
+    "query": "SELECT max(version) as \"version!\"  from versions"
+  },
+  "75d2deadeab6de5a1541c2f2f154c53e54ec8abfb2dca8e5d2edae9959f2ff38": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "INSERT INTO versions (version) VALUES (?)"
+  },
+  "ad52a3310bf8f5538aa81f2294b6c40f5c655340e9c7798fda1ed1c7b8387752": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Right": 6
+      }
+    },
+    "query": "INSERT INTO speakers_settings_for_ui (\n            version, \n            speaker, \n            crossover, \n            distance, \n            gain, \n            is_subwoofer\n        ) VALUES (?, ?, ?, ?, ?, ?)"
+  },
+  "be34be5b3df86c0170bcb533179c1f11310328b31435b197d22c3bda29efeee6": {
+    "describe": {
+      "columns": [
+        {
+          "name": "speaker",
+          "ordinal": 0,
+          "type_info": "Text"
+        },
+        {
+          "name": "freq: i32",
+          "ordinal": 1,
+          "type_info": "Int64"
+        },
+        {
+          "name": "gain: f32",
+          "ordinal": 2,
+          "type_info": "Float"
+        },
+        {
+          "name": "q: f32",
+          "ordinal": 3,
+          "type_info": "Float"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "SELECT \n        speaker, \n        freq as \"freq: i32\", \n        gain as \"gain: f32\", \n        q as \"q: f32\"\n        from filters where version=?"
+  },
+  "d48bf6d3a02fd0c8b28060a70246fd9425e816e3a20d14b02294498112f25bf9": {
+    "describe": {
+      "columns": [
+        {
+          "name": "selected_distance: crate::processor::SelectedDistanceType",
+          "ordinal": 0,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "SELECT \n        selected_distance as \"selected_distance: crate::processor::SelectedDistanceType\"\n        from versions where version=?"
+  },
+  "ffdea2de2bf5c13090e64ba69a275b19ade69a4138946e54219d0e30896545a9": {
+    "describe": {
+      "columns": [
+        {
+          "name": "speaker",
+          "ordinal": 0,
+          "type_info": "Text"
+        },
+        {
+          "name": "crossover: i32",
+          "ordinal": 1,
+          "type_info": "Int64"
+        },
+        {
+          "name": "delay: f32",
+          "ordinal": 2,
+          "type_info": "Float"
+        },
+        {
+          "name": "gain: f32",
+          "ordinal": 3,
+          "type_info": "Float"
+        },
+        {
+          "name": "is_subwoofer: bool",
+          "ordinal": 4,
+          "type_info": "Int64"
+        }
+      ],
+      "nullable": [
+        false,
+        true,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "SELECT \n        speaker, \n        crossover as \"crossover: i32\", \n        delay as \"delay: f32\", \n        gain as \"gain: f32\", \n        is_subwoofer as \"is_subwoofer: bool\"\n        from speakers_for_camilla where version=?"
+  }
+}

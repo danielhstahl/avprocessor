@@ -10,9 +10,6 @@ export enum DelayAction {
     UPDATE
 }
 
-const FEET_TO_METER_RATIO = 0.3048
-const convertFeetToMeters = (feet: number) => feet * FEET_TO_METER_RATIO
-const convertMetersToFeet = (meters: number) => meters / FEET_TO_METER_RATIO
 
 
 type State = {
@@ -24,7 +21,7 @@ type Action = {
 }
 const initialState = { delayType: DelayType.FEET };
 
-const delayReducer = (state: State, action: Action) => {
+export const delayReducer = (state: State, action: Action) => {
     switch (action.type) {
         case DelayAction.UPDATE:
             return { delayType: action.value };
