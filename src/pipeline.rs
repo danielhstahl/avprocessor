@@ -76,7 +76,7 @@ enum PipelineType {
 
 #[derive(Serialize)]
 #[serde(crate = "rocket::serde")]
-pub(crate) struct PipelineFilter {
+pub struct PipelineFilter {
     #[serde(rename = "type")]
     pipeline_type: PipelineType,
     channel: usize,
@@ -85,7 +85,7 @@ pub(crate) struct PipelineFilter {
 
 #[derive(Serialize)]
 #[serde(crate = "rocket::serde")]
-pub(crate) struct PipelineMixer {
+pub struct PipelineMixer {
     #[serde(rename = "type")]
     pipeline_type: PipelineType,
     name: String,
