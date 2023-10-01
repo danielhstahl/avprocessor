@@ -22,6 +22,7 @@ type Action = {
 const initialState = { delayType: DelayType.FEET };
 
 export const delayReducer = (state: State, action: Action) => {
+    console.log(action)
     switch (action.type) {
         case DelayAction.UPDATE:
             return { delayType: action.value };

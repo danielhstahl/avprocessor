@@ -35,7 +35,7 @@ export const loader = () => {
 }
 
 export const SPEAKER_ROUTE = "/speakers"
-export const ADVANCED_ROUTE = "/prompt"
+export const ADVANCED_ROUTE = "/advanced"
 
 
 export const MenuItems = [

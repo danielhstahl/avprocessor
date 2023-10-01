@@ -334,35 +334,6 @@ const SpeakerContext = createContext({
     state: initialState,
     dispatch: (_: Action) => { }
 })
-/*
-const handleDelay = (delayType: DelayType, delayValue: number) => {
-    switch (delayType) {
-        case DelayType.FEET:
-            return {
-                delay: 0.0, //set to zero since does not matter; will be updated when applied
-                distanceInFeet: delayValue,
-                distanceInMeters: convertFeetToMeters(delayValue)
-            }
-
-        case DelayType.METERS:
-            return {
-                delay: 0.0, //set to zero since does not matter; will be updated when applied
-                distanceInFeet: convertMetersToFeet(delayValue),
-                distanceInMeters: delayValue
-            }
-
-        case DelayType.MS:
-            return {
-                delay: delayValue,
-                distanceInFeet: undefined,  //explicit in case already defined in speaker settings
-                distanceInMeters: undefined //explicit in case already defined in speaker settings
-            }
-        default:
-            return {
-                delay: delayValue
-            }
-    }
-}*/
 
 //export for testing
 export const setSpeakerBase = (speakers: Speaker[], speakerConfiguration: string) => {
@@ -391,15 +362,7 @@ export function speakerReducer(state: State, action: Action): State {
                 ...state,
                 speakers: state.speakers.map(v => v.speaker === speaker.speaker ? speaker : v)
             }
-        /*case SpeakerAction.UPDATE_DELAY:
-            const { speaker: speakerDelay, delayType, delayValue } = action.value as SpeakerDelay
-            return {
-                ...state,
-                speakers: state.speakers.map(v => v.speaker === speakerDelay.speaker ? {
-                    ...v,
-                    ...handleDelay(delayType, delayValue)
-                } : v)
-            }*/
+
         case SpeakerAction.INIT:
             const speakerConfiguration = action.value as string
             return {

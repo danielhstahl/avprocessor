@@ -4,14 +4,15 @@ import React from 'react';
 import { Version, useVersion, VersionAction } from '../state/version'
 import { deleteConfig } from '../services/configuration';
 import { DelayAction, useDelay, DelayType } from '../state/delay';
-const { Text } = Typography
+const { Text, Title } = Typography
 
-//add ms/ft/meters selection
 //add clear database
 const AdvancedComponent: React.FC = () => {
     const { state: { versions }, dispatch: versionDispatch } = useVersion()
     const { state: { delayType }, dispatch: delayTypeDispatch } = useDelay()
     const [messageApi, contextHolder] = message.useMessage()
+
+    console.log(delayType)
 
     const saveSuccess = () => {
         messageApi.success("Configuration Deleted")
@@ -27,7 +28,8 @@ const AdvancedComponent: React.FC = () => {
     return <>
         {contextHolder}
         <Row>
-            <Col xs={24} md={8}>
+            <Col xs={24} md={12} lg={8}>
+                <Title level={4}>Configuration Versions</Title>
                 <List
                     itemLayout="horizontal"
                     dataSource={versions}
@@ -39,11 +41,12 @@ const AdvancedComponent: React.FC = () => {
                     </List.Item>}
                 />
             </Col>
-            <Col xs={24} md={8}>
+            <Col xs={24} md={12} lg={8}>
+                <Title level={4}>Distance/Delay</Title>
                 <Select
                     value={delayType}
                     onChange={v => delayTypeDispatch({ type: DelayAction.UPDATE, value: v })}
-                    options={Object.keys(DelayType).map(v => ({ value: v, label: v }))}
+                    options={Object.values(DelayType).map(v => ({ value: v, label: v }))}
                     style={{ width: '100%' }} />
             </Col>
         </Row>

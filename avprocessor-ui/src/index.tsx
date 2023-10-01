@@ -11,6 +11,7 @@ import { ROOT_ID } from './utils/constants'
 import { SpeakerProvider } from './state/speaker'
 import { FilterProvider } from './state/filter'
 import { VersionProvider } from './state/version'
+import { DelayProvider } from './state/delay'
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement
 );
@@ -25,13 +26,16 @@ const router = createBrowserRouter([
   },
 
 ]);
+
 root.render(
   <React.StrictMode>
     <SpeakerProvider>
       <FilterProvider>
-        <VersionProvider>
-          <RouterProvider router={router} />
-        </VersionProvider>
+        <DelayProvider>
+          <VersionProvider>
+            <RouterProvider router={router} />
+          </VersionProvider>
+        </DelayProvider>
       </FilterProvider>
     </SpeakerProvider>
   </React.StrictMode>
