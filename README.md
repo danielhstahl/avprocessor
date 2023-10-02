@@ -41,5 +41,4 @@ The computation for delays are relatively straightforward.  The longest distance
 # TODO
 
 * Add docstrings to the relevant rust functions
-* See if there is a way to combine or at least make more DRY `get_config_for_camilla_from_db` and `get_config_from_db`.
 * Add static hosting of transpiled javascript/html.
