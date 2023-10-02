@@ -2,9 +2,9 @@ import React from 'react';
 import { ROOT_ID } from './utils/constants'
 import { render, screen, waitFor } from '@testing-library/react';
 import Speaker from './pages/Speakers'
-import { SpeakerProviderComponent } from './state/speaker';
-import { FilterProviderComponent } from './state/filter'
-import { VersionProviderComponent } from './state/version'
+import { SpeakerProvider } from './state/speaker';
+import { FilterProvider } from './state/filter'
+import { VersionProvider } from './state/version'
 import App, { deriveAppliedVersion } from './App';
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 
@@ -17,16 +17,16 @@ describe("UI", () => {
         element: <App />,
         id: ROOT_ID,
         errorElement: <p>Uh oh, 404</p>,
-        loader: () => ({ versions: [{ version: "0.1", appliedVersion: true }], speakers: undefined, filters: undefined, appliedVersion: undefined }),
+        loader: () => ({ versions: [{ version: 1, appliedVersion: true, versionDate: "2023" }], speakers: undefined, filters: undefined, appliedVersion: undefined }),
         children: [{ path: "/", element: <div>Hello</div> }]
       },
 
     ], { initialEntries: ["/"] });
-    render(<SpeakerProviderComponent>
-      <FilterProviderComponent>
-        <VersionProviderComponent><RouterProvider router={router} /></VersionProviderComponent>
-      </FilterProviderComponent>
-    </SpeakerProviderComponent>)
+    render(<SpeakerProvider>
+      <FilterProvider>
+        <VersionProvider><RouterProvider router={router} /></VersionProvider>
+      </FilterProvider>
+    </SpeakerProvider>)
     await waitFor(() => expect(screen.getByText(/Hello/i)).toBeInTheDocument())
 
   });
@@ -82,13 +82,11 @@ describe("UI", () => {
       },
 
     ], { initialEntries: ["/speakers"] });
-    render(<SpeakerProviderComponent>
-      <FilterProviderComponent>
-        <VersionProviderComponent>
-          <RouterProvider router={router} />
-        </VersionProviderComponent>
-      </FilterProviderComponent>
-    </SpeakerProviderComponent>)
+    render(<SpeakerProvider>
+      <FilterProvider>
+        <VersionProvider><RouterProvider router={router} /></VersionProvider>
+      </FilterProvider>
+    </SpeakerProvider>)
     const select = await waitFor(() => screen.getAllByTitle('4.1').at(0))
     expect(select?.textContent).toEqual("4.1")
   });
@@ -96,12 +94,12 @@ describe("UI", () => {
 
 describe("deriveAppliedVersion", () => {
   it("gets applied version if exists", () => {
-    expect(deriveAppliedVersion([{ version: "0.2", appliedVersion: true }])).toEqual("0.2")
+    expect(deriveAppliedVersion([{ version: 2, appliedVersion: true, versionDate: "2023" }])).toEqual(2)
   })
   it("gets applied version if exists with more versions", () => {
-    expect(deriveAppliedVersion([{ version: "0.1", appliedVersion: true }, { version: "0.2", appliedVersion: false }])).toEqual("0.1")
+    expect(deriveAppliedVersion([{ version: 1, appliedVersion: true, versionDate: "2023" }, { version: 2, appliedVersion: false, versionDate: "2023" }])).toEqual(1)
   })
   it("returns last element if nothing applied", () => {
-    expect(deriveAppliedVersion([{ version: "0.1", appliedVersion: false }, { version: "0.2", appliedVersion: false }])).toEqual("0.2")
+    expect(deriveAppliedVersion([{ version: 1, appliedVersion: false, versionDate: "2023" }, { version: 2, appliedVersion: false, versionDate: "2023" }])).toEqual(2)
   })
 })

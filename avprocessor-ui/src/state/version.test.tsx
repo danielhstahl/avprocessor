@@ -1,26 +1,75 @@
-import { render, screen, act } from '@testing-library/react';
-import { VersionProviderComponent, VersionContext } from './version'
-import { useContext } from 'react'
-import userEvent from '@testing-library/user-event'
+import { VersionAction, versionReducer } from './version'
 
 
-describe("VersionProviderComponent", () => {
-    it("correctls adds version", async () => {
-        const user = userEvent.setup()
-        const FakeComponent = () => {
-            const { versions, addVersion } = useContext(VersionContext)
-            return <div><button onClick={() => addVersion("0.1.0")}>click</button>{versions.map(v => <p key={v.version}>{v.version}</p>)}</div>
-        }
-        render(
-            <VersionProviderComponent>
-                <div>
-                    <FakeComponent />
-                </div>
-            </VersionProviderComponent>
-        )
-        await act(async () => user.click(screen.getByRole('button', { name: /click/i })))
-        const version = screen.getByText(/0.1.0/i);
-        expect(version).toBeInTheDocument()
 
+describe("versionReducer", () => {
+    it("adds version when no version", () => {
+        const results = versionReducer({ versions: [] }, { type: VersionAction.ADD, value: { version: 1, appliedVersion: false, versionDate: "2023" } })
+        expect(results.versions).toEqual([{ version: 1, appliedVersion: false, versionDate: "2023" }])
+    })
+    it("adds version when existing versions", () => {
+        const results = versionReducer({
+            versions: [
+                { version: 1, appliedVersion: true, versionDate: "2023" }
+            ]
+        }, { type: VersionAction.ADD, value: { version: 2, appliedVersion: false, versionDate: "2023" } })
+        expect(results.versions).toEqual([{ version: 1, appliedVersion: true, versionDate: "2023" }, { version: 2, appliedVersion: false, versionDate: "2023" }])
+    })
+    it("removes version when it exists", () => {
+        const results = versionReducer({
+            versions: [
+                { version: 1, appliedVersion: true, versionDate: "2023" }
+            ]
+        }, { type: VersionAction.REMOVE, value: 1 })
+        expect(results.versions).toEqual([])
+    })
+    it("does nothing if version does not exist", () => {
+        const results = versionReducer({ versions: [{ version: 1, appliedVersion: true, versionDate: "2023" }] }, { type: VersionAction.REMOVE, value: 2 })
+        expect(results.versions).toEqual([{ version: 1, appliedVersion: true, versionDate: "2023" }])
+    })
+    it("inits", () => {
+        const results = versionReducer({
+            versions: [
+                { version: 1, appliedVersion: true, versionDate: "2023" }
+            ]
+        }, { type: VersionAction.INIT, value: [{ version: 2, appliedVersion: false, versionDate: "2023" }] })
+        expect(results.versions).toEqual([{ version: 2, appliedVersion: false, versionDate: "2023" }])
+    })
+    it("selects", () => {
+        const results = versionReducer({
+            versions: [
+                { version: 1, appliedVersion: true, versionDate: "2023" },
+                { version: 2, appliedVersion: false, versionDate: "2023" }
+            ]
+        }, { type: VersionAction.SELECT, value: 2 })
+        expect(results.selectedVersion).toEqual(2)
+        expect(results.versions).toEqual([
+            { version: 1, appliedVersion: true, versionDate: "2023" },
+            { version: 2, appliedVersion: false, versionDate: "2023" }
+        ])
+    })
+    it("sets applied if already applied", () => {
+        const results = versionReducer({
+            versions: [
+                { version: 1, appliedVersion: true, versionDate: "2023" },
+                { version: 2, appliedVersion: false, versionDate: "2023" }
+            ]
+        }, { type: VersionAction.SET_APPLIED, value: 1 })
+        expect(results.versions).toEqual([
+            { version: 1, appliedVersion: true, versionDate: "2023" },
+            { version: 2, appliedVersion: false, versionDate: "2023" }
+        ])
+    })
+    it("sets applied if something else selected for applied", () => {
+        const results = versionReducer({
+            versions: [
+                { version: 1, appliedVersion: true, versionDate: "2023" },
+                { version: 2, appliedVersion: false, versionDate: "2023" }
+            ]
+        }, { type: VersionAction.SET_APPLIED, value: 2 })
+        expect(results.versions).toEqual([
+            { version: 1, appliedVersion: false, versionDate: "2023" },
+            { version: 2, appliedVersion: true, versionDate: "2023" }
+        ])
     })
 })

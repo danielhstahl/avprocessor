@@ -76,7 +76,7 @@ enum PipelineType {
 
 #[derive(Serialize)]
 #[serde(crate = "rocket::serde")]
-pub(crate) struct PipelineFilter {
+pub struct PipelineFilter {
     #[serde(rename = "type")]
     pipeline_type: PipelineType,
     channel: usize,
@@ -85,7 +85,7 @@ pub(crate) struct PipelineFilter {
 
 #[derive(Serialize)]
 #[serde(crate = "rocket::serde")]
-pub(crate) struct PipelineMixer {
+pub struct PipelineMixer {
     #[serde(rename = "type")]
     pipeline_type: PipelineType,
     name: String,
@@ -130,28 +130,28 @@ mod tests {
             Speaker {
                 speaker: "l".to_string(),
                 crossover: Some(80),
-                delay: 10,
+                delay: 10.0,
                 gain: 1.0,
                 is_subwoofer: false,
             },
             Speaker {
                 speaker: "c".to_string(),
                 crossover: Some(80),
-                delay: 10,
+                delay: 10.0,
                 gain: 1.0,
                 is_subwoofer: false,
             },
             Speaker {
                 speaker: "r".to_string(),
                 crossover: Some(80),
-                delay: 10,
+                delay: 10.0,
                 gain: 1.0,
                 is_subwoofer: false,
             },
             Speaker {
                 speaker: "sub1".to_string(),
                 crossover: Some(80),
-                delay: 10,
+                delay: 10.0,
                 gain: 1.0,
                 is_subwoofer: true,
             },

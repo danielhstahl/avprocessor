@@ -4,8 +4,7 @@ use chrono::Utc;
 use rocket::fairing::{self, AdHoc};
 use rocket::response::status::BadRequest;
 use rocket::serde::{json, json::Json, Serialize};
-use rocket::State;
-use rocket::{Build, Rocket};
+use rocket::{Build, Rocket, State};
 use rocket_db_pools::sqlx::{self};
 use rocket_db_pools::{Connection, Database};
 use std::collections::BTreeMap;
@@ -20,33 +19,107 @@ use mixers::{
     SpeakerCounts,
 };
 use pipeline::{create_crossover_pipeline, create_per_speaker_pipeline, Pipeline};
-use processor::{Filter, ProcessorSettings, Speaker};
+use processor::{
+    Filter, ProcessorSettings, ProcessorSettingsForCamilla, SelectedDistanceType, Speaker,
+    SpeakerForUI,
+};
 
 #[derive(Database)]
 #[database("settings")]
 struct Settings(sqlx::SqlitePool);
 
+#[derive(Serialize)]
+#[serde(crate = "rocket::serde")]
+struct CamillaConfig {
+    mixers: BTreeMap<String, Mixer>,
+    filters: BTreeMap<String, SpeakerAdjust>,
+    pipeline: Vec<Pipeline>,
+}
+
+#[derive(Serialize, sqlx::FromRow)]
+#[serde(crate = "rocket::serde", rename_all = "camelCase")]
+struct Version {
+    version: i32,
+    applied_version: bool,
+    version_date: String,
+}
+
+#[derive(sqlx::FromRow)]
+struct ConfigVersion {
+    version: i32,
+}
+
+#[derive(sqlx::FromRow)]
+struct SelectedDistanceWrapper {
+    selected_distance: SelectedDistanceType,
+}
+
+#[derive(Serialize)]
+#[serde(crate = "rocket::serde")]
+struct SetConfig {
+    #[serde(rename = "SetConfigJson")]
+    set_config_json: String,
+}
+
+//this is used purely to store state and pass to mixer and filter creators
+struct ConfigurationMapping<'a> {
+    peq_filters: BTreeMap<&'a String, Vec<(usize, &'a Filter)>>,
+    speaker_counts: SpeakerCounts,
+}
+
 async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
     if let Some(db) = Settings::fetch(&rocket) {
-        let _1=sqlx::query(
-            "CREATE TABLE if not exists filters (version text not null, filter_index integer not null, speaker text not null, freq integer not null, gain real not null, q real not null, PRIMARY KEY (version, filter_index, speaker));",
+        let _1 = sqlx::query(
+            "CREATE TABLE if not exists filters (
+                version integer not null, 
+                filter_index integer not null, 
+                speaker text not null, 
+                freq integer not null, 
+                gain real not null, 
+                q real not null, 
+                PRIMARY KEY (version, filter_index, speaker));",
         )
         .execute(&db.0)
         .await;
 
-        let _2=sqlx::query(
-        "CREATE TABLE if not exists speakers (version text not null, speaker text not null, crossover integer, delay real not null, gain real not null, is_subwoofer integer not null, PRIMARY KEY (version, speaker));",
+        let _2 = sqlx::query(
+            "CREATE TABLE if not exists speakers_settings_for_ui (
+            version integer not null,
+            speaker text not null, 
+            crossover integer, 
+            distance real not null, 
+            gain real not null, 
+            is_subwoofer integer not null, 
+            PRIMARY KEY (version, speaker));",
         )
         .execute(&db.0)
         .await;
 
-        let _3 =
-            sqlx::query("CREATE TABLE if not exists versions (version text not null PRIMARY KEY);")
-                .execute(&db.0)
-                .await;
+        let _3 = sqlx::query(
+            "CREATE TABLE if not exists speakers_for_camilla (
+                version text not null, 
+                speaker text not null, 
+                crossover integer, 
+                delay real not null, 
+                gain real not null,
+                is_subwoofer integer not null, 
+                PRIMARY KEY (version, speaker));",
+        )
+        .execute(&db.0)
+        .await;
 
         let _4 = sqlx::query(
-            "CREATE TABLE if not exists applied_version (version text not null PRIMARY KEY);",
+            "CREATE TABLE if not exists versions (
+                version integer not null PRIMARY KEY, 
+                version_date text not null,
+                selected_distance text not null);",
+        )
+        .execute(&db.0)
+        .await;
+
+        let _5 = sqlx::query(
+            "CREATE TABLE if not exists applied_version (
+                version integer not null PRIMARY KEY);",
         )
         .execute(&db.0)
         .await;
@@ -57,22 +130,8 @@ async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
     }
 }
 
-#[derive(Serialize)]
-#[serde(crate = "rocket::serde")]
-struct CamillaConfig {
-    mixers: BTreeMap<String, Mixer>,
-    filters: BTreeMap<String, SpeakerAdjust>,
-    pipeline: Vec<Pipeline>,
-}
-
-//this is used purely to store state and pass to mixer and filter creators
-struct ConfigurationMapping<'a> {
-    peq_filters: BTreeMap<&'a String, Vec<(usize, &'a Filter)>>,
-    speaker_counts: SpeakerCounts,
-}
-
 fn convert_processor_settings_to_camilla(
-    settings: &ProcessorSettings,
+    settings: &ProcessorSettingsForCamilla,
 ) -> Result<String, json::serde_json::Error> {
     let configuration_mapping = ConfigurationMapping {
         peq_filters: compute_peq_filter(&settings.filters),
@@ -91,7 +150,6 @@ fn convert_processor_settings_to_camilla(
                 &configuration_mapping.speaker_counts,
                 &mixer,
                 &output_channel_mapping,
-                //&settings.speakers,
             );
             let mixers: BTreeMap<String, Mixer> = BTreeMap::from_iter(
                 vec![
@@ -127,18 +185,172 @@ fn convert_processor_settings_to_camilla(
     }
 }
 
-#[derive(Serialize, sqlx::FromRow)]
-#[serde(crate = "rocket::serde", rename_all = "camelCase")]
-struct Version {
-    version: String,
-    applied_version: bool,
+async fn get_config_for_camilla_from_db(
+    db: &mut Connection<Settings>,
+    version: i32,
+) -> Result<ProcessorSettingsForCamilla, sqlx::Error> {
+    let SelectedDistanceWrapper { selected_distance } = sqlx::query_as!(
+        SelectedDistanceWrapper,
+        r#"SELECT 
+        selected_distance as "selected_distance: crate::processor::SelectedDistanceType"
+        from versions where version=?"#,
+        version
+    )
+    .fetch_one(&mut **db)
+    .await?;
+    let filters = sqlx::query_as!(
+        Filter,
+        r#"SELECT speaker, 
+        freq as "freq: i32", 
+        gain as "gain: f32", 
+        q as "q: f32"
+        from filters where version=?"#,
+        version
+    )
+    .fetch_all(&mut **db)
+    .await?;
+    let speakers = sqlx::query_as!(
+        Speaker,
+        r#"SELECT 
+        speaker, 
+        crossover as "crossover: i32", 
+        delay as "delay: f32", 
+        gain as "gain: f32", 
+        is_subwoofer as "is_subwoofer: bool"
+        from speakers_for_camilla where version=?"#,
+        version
+    )
+    .fetch_all(&mut **db)
+    .await?;
+    Ok(ProcessorSettingsForCamilla {
+        filters,
+        speakers,
+        selected_distance,
+    })
 }
+
+async fn get_config_from_db(
+    db: &mut Connection<Settings>,
+    version: i32,
+) -> Result<ProcessorSettings, sqlx::Error> {
+    let SelectedDistanceWrapper { selected_distance } = sqlx::query_as!(
+        SelectedDistanceWrapper,
+        r#"SELECT 
+        selected_distance as "selected_distance: crate::processor::SelectedDistanceType"
+        from versions where version=?"#,
+        version
+    )
+    .fetch_one(&mut **db)
+    .await?;
+
+    let filters = sqlx::query_as!(
+        Filter,
+        r#"SELECT 
+        speaker, 
+        freq as "freq: i32", 
+        gain as "gain: f32", 
+        q as "q: f32"
+        from filters where version=?"#,
+        version
+    )
+    .fetch_all(&mut **db)
+    .await?;
+    let speakers = sqlx::query_as!(
+        SpeakerForUI,
+        r#"
+        SELECT 
+        speaker, 
+        crossover as "crossover?: i32", 
+        distance as "distance: f32", 
+        gain as "gain: f32", 
+        is_subwoofer as "is_subwoofer: bool"
+        from speakers_settings_for_ui where version=?"#,
+        version,
+    )
+    .fetch_all(&mut **db)
+    .await?;
+    Ok(ProcessorSettings {
+        filters,
+        speakers,
+        selected_distance,
+    })
+}
+
+const METERS_PER_MS: f32 = 0.3430;
+const FEET_PER_MS: f32 = 1.1164;
+fn convert_distance_to_delay(
+    largest_distance: f32,
+    current_distance: f32,
+    distance_per_ms: f32,
+) -> f32 {
+    (largest_distance - current_distance) / distance_per_ms
+}
+fn update_speaker_delays(
+    selected_distance: &SelectedDistanceType,
+    speakers: &[SpeakerForUI],
+) -> Vec<Speaker> {
+    let max_distance =
+        speakers.iter().fold(
+            0.0,
+            |accum: f32, speaker: &SpeakerForUI| match selected_distance {
+                SelectedDistanceType::MS => 0.0,
+                _ => {
+                    if accum < speaker.distance {
+                        speaker.distance
+                    } else {
+                        accum
+                    }
+                }
+            },
+        );
+    speakers
+        .iter()
+        .map(|speaker| match selected_distance {
+            SelectedDistanceType::METERS => Speaker {
+                speaker: speaker.speaker.clone(), //Hate doing this, but no great ways to have two arrays sharing same string reference.  Using &' str errors on the sqlx macro
+                crossover: speaker.crossover,
+                delay: convert_distance_to_delay(max_distance, speaker.distance, METERS_PER_MS),
+                gain: speaker.gain,
+                is_subwoofer: speaker.is_subwoofer,
+            },
+            SelectedDistanceType::FEET => Speaker {
+                speaker: speaker.speaker.clone(), //Hate doing this, but no great ways to have two arrays sharing same string reference.  Using &' str errors on the sqlx macro
+                crossover: speaker.crossover,
+                delay: convert_distance_to_delay(max_distance, speaker.distance, FEET_PER_MS),
+                gain: speaker.gain,
+                is_subwoofer: speaker.is_subwoofer,
+            },
+            SelectedDistanceType::MS => Speaker {
+                speaker: speaker.speaker.clone(), //Hate doing this, but no great ways to have two arrays sharing same string reference.  Using &' str errors on the sqlx macro
+                crossover: speaker.crossover,
+                delay: speaker.distance,
+                gain: speaker.gain,
+                is_subwoofer: speaker.is_subwoofer,
+            },
+        })
+        .collect()
+}
+use tungstenite::{connect, Message};
+use url::Url;
+
 #[get("/versions")]
 async fn get_versions(
     mut db: Connection<Settings>,
 ) -> Result<Json<Vec<Version>>, BadRequest<String>> {
-    let versions = sqlx::query_as::<_, Version>(
-        "SELECT t1.version, case when t2.version is null then false else true end as applied_version FROM versions t1 left join applied_version t2 on t1.version=t2.version",
+    let versions = sqlx::query_as!(
+        Version,
+        r#"
+        SELECT 
+        t1.version as "version: i32", 
+        t1.version_date,
+        case when 
+            t2.version is null then false 
+            else true 
+        end as "applied_version: bool"
+        FROM versions t1 
+        left join applied_version t2 
+        on t1.version=t2.version
+        "#,
     )
     .fetch_all(&mut *db)
     .await
@@ -146,66 +358,41 @@ async fn get_versions(
 
     Ok(Json(versions))
 }
-
 #[get("/config/latest")]
 async fn config_latest(
     mut db: Connection<Settings>,
 ) -> Result<Json<ProcessorSettings>, BadRequest<String>> {
-    let filters=sqlx::query_as::<_, Filter>("SELECT speaker, freq, gain, q from filters where version=(select max(version) as mxversion FROM versions)")
-        .fetch_all(&mut *db)
-        .await.map_err(|e| BadRequest(Some(e.to_string())))?;
-    let speakers=sqlx::query_as::<_, Speaker>("SELECT speaker, crossover, delay, gain, is_subwoofer from speakers where version=(select max(version) as mxversion FROM versions)")
-    .fetch_all(&mut *db)
-    .await.map_err(|e| BadRequest(Some(e.to_string())))?;
-    Ok(Json(ProcessorSettings { filters, speakers }))
-}
-
-#[get("/config/<version>")]
-async fn config_version(
-    mut db: Connection<Settings>,
-    version: &str,
-) -> Result<Json<ProcessorSettings>, BadRequest<String>> {
-    get_version_from_db(&mut db, version)
+    let ConfigVersion { version } = sqlx::query_as!(
+        ConfigVersion,
+        r#"SELECT max(version) as "version!: i32"  from versions"#
+    )
+    .fetch_one(&mut *db)
+    .await
+    .map_err(|e| BadRequest(Some(e.to_string())))?;
+    get_config_from_db(&mut db, version)
         .await
         .map(|v| Json(v))
         .map_err(|e| BadRequest(Some(e.to_string())))
 }
 
-async fn get_version_from_db(
-    db: &mut Connection<Settings>,
-    version: &str,
-) -> Result<ProcessorSettings, sqlx::Error> {
-    let filters =
-        sqlx::query_as::<_, Filter>("SELECT speaker, freq, gain, q from filters where version=?")
-            .bind(version)
-            .fetch_all(&mut **db)
-            .await?;
-    let speakers = sqlx::query_as::<_, Speaker>(
-        "SELECT speaker, crossover, delay, gain, is_subwoofer from speakers where version=?",
-    )
-    .bind(version)
-    .fetch_all(&mut **db)
-    .await?;
-    Ok(ProcessorSettings { filters, speakers })
-}
-
-use tungstenite::{connect, Message};
-use url::Url;
-
-#[derive(Serialize)]
-#[serde(crate = "rocket::serde")]
-struct SetConfig {
-    #[serde(rename = "SetConfigJson")]
-    set_config_json: String,
+#[get("/config/<version>")]
+async fn config_version(
+    mut db: Connection<Settings>,
+    version: i32,
+) -> Result<Json<ProcessorSettings>, BadRequest<String>> {
+    get_config_from_db(&mut db, version)
+        .await
+        .map(|v| Json(v))
+        .map_err(|e| BadRequest(Some(e.to_string())))
 }
 
 #[post("/config/apply/<version>", format = "application/json")]
 async fn apply_config_version(
     mut db: Connection<Settings>,
-    version: &str,
+    version: i32,
     camilla_dsp_url: &State<String>,
 ) -> Result<(), BadRequest<String>> {
-    let settings = get_version_from_db(&mut db, version)
+    let settings = get_config_for_camilla_from_db(&mut db, version)
         .await
         .map_err(|e| BadRequest(Some(e.to_string())))?;
     let config = convert_processor_settings_to_camilla(&settings)
@@ -221,12 +408,11 @@ async fn apply_config_version(
         .send(Message::Text(config_as_json))
         .map_err(|e| BadRequest(Some(e.to_string())))?;
 
-    let _ = sqlx::query("DELETE from applied_version")
+    let _ = sqlx::query!("DELETE from applied_version")
         .execute(&mut *db)
         .await
         .map_err(|e| BadRequest(Some(e.to_string())))?;
-    let _ = sqlx::query("INSERT INTO applied_version (version) VALUES (?)")
-        .bind(&version)
+    let _ = sqlx::query!("INSERT INTO applied_version (version) VALUES (?)", version)
         .execute(&mut *db)
         .await
         .map_err(|e| BadRequest(Some(e.to_string())))?;
@@ -238,59 +424,102 @@ async fn apply_config_version(
 async fn write_configuration(
     mut db: Connection<Settings>,
     settings: Json<ProcessorSettings>,
-) -> Result<String, BadRequest<String>> {
-    let version = Utc::now().to_string();
-    let _ = sqlx::query("INSERT INTO versions (version) VALUES (?)")
-        .bind(&version)
-        .execute(&mut *db)
-        .await;
+) -> Result<Json<Version>, BadRequest<String>> {
+    let version_date = Utc::now().to_string();
+    let ConfigVersion { version } = sqlx::query_as!(
+        ConfigVersion,
+        r#"INSERT INTO versions (
+            version_date, selected_distance
+        ) VALUES (?, ?) RETURNING version as "version: i32""#,
+        version_date,
+        settings.selected_distance
+    )
+    .fetch_one(&mut *db)
+    .await
+    .map_err(|e| BadRequest(Some(e.to_string())))?;
+
     for (index, filter) in settings.filters.iter().enumerate() {
-        let _ = sqlx::query(
+        let index_i32 = index as i32;
+        let _ = sqlx::query!(
             "INSERT INTO filters (version, filter_index, speaker, freq, gain, q) VALUES (?, ?, ?, ?, ?, ?)",
+            version, index_i32, filter.speaker, filter.freq, filter.gain, filter.q
         )
-        .bind(&version)
-        .bind(index as i32)
-        .bind(&filter.speaker)
-        .bind(filter.freq)
-        .bind(filter.gain)
-        .bind(filter.q)
         .execute(&mut *db)
         .await;
     }
     for speaker in settings.speakers.iter() {
-        let _ =sqlx::query(
-            "INSERT INTO speakers (version, speaker, crossover, delay, gain, is_subwoofer) VALUES (?, ?, ?, ?, ?, ?)",
+        let _ = sqlx::query!(
+            "INSERT INTO speakers_settings_for_ui (
+            version, 
+            speaker, 
+            crossover, 
+            distance, 
+            gain, 
+            is_subwoofer
+        ) VALUES (?, ?, ?, ?, ?, ?)",
+            version,
+            speaker.speaker,
+            speaker.crossover,
+            speaker.distance,
+            speaker.gain,
+            speaker.is_subwoofer
         )
-        .bind(&version)
-        .bind(&speaker.speaker)
-        .bind(speaker.crossover)
-        .bind(speaker.delay)
-        .bind(speaker.gain)
-        .bind(speaker.is_subwoofer)
         .execute(&mut *db)
         .await;
     }
-    Ok(version)
+    let speakers = update_speaker_delays(&settings.selected_distance, &settings.speakers);
+    for speaker in speakers.iter() {
+        let _ = sqlx::query!(
+            "INSERT INTO speakers_for_camilla (
+                version, 
+                speaker, 
+                crossover, 
+                delay, 
+                gain, 
+                is_subwoofer
+            ) VALUES (?, ?, ?, ?, ?, ?)",
+            version,
+            speaker.speaker,
+            speaker.crossover,
+            speaker.delay,
+            speaker.gain,
+            speaker.is_subwoofer
+        )
+        .execute(&mut *db)
+        .await;
+    }
+    Ok(Json(Version {
+        version,
+        applied_version: false,
+        version_date,
+    }))
 }
 
 #[delete("/config/<version>")]
 async fn delete_configuration(
     mut db: Connection<Settings>,
-    version: &str,
-) -> Result<String, BadRequest<String>> {
-    let _ = sqlx::query("DELETE FROM versions WHERE version=?")
-        .bind(&version)
+    version: i32,
+) -> Result<(), BadRequest<String>> {
+    let _ = sqlx::query!("DELETE FROM versions WHERE version=?", version)
         .execute(&mut *db)
         .await;
-    let _ = sqlx::query("DELETE FROM filters WHERE version=?")
-        .bind(&version)
+    let _ = sqlx::query!("DELETE FROM filters WHERE version=?", version)
         .execute(&mut *db)
         .await;
-    let _ = sqlx::query("DELETE FROM speakers WHERE version=?")
-        .bind(&version)
+    let _ = sqlx::query!(
+        "DELETE FROM speakers_settings_for_ui WHERE version=?",
+        version
+    )
+    .execute(&mut *db)
+    .await;
+    let _ = sqlx::query!("DELETE FROM speakers_for_camilla WHERE version=?", version)
         .execute(&mut *db)
         .await;
-    Ok(version.to_string())
+
+    let _ = sqlx::query!("DELETE FROM applied_version WHERE version=?", version)
+        .execute(&mut *db)
+        .await;
+    Ok(())
 }
 
 #[launch]
@@ -318,11 +547,155 @@ fn rocket() -> _ {
 #[cfg(test)]
 mod tests {
     use super::convert_processor_settings_to_camilla;
-    use crate::processor::ProcessorSettings;
-    use crate::processor::{Filter, Speaker};
+    use super::update_speaker_delays;
+    use super::FEET_PER_MS;
+    use super::METERS_PER_MS;
+    use crate::processor::{
+        Filter, ProcessorSettingsForCamilla, SelectedDistanceType, Speaker, SpeakerForUI,
+    };
+
+    #[test]
+    fn test_update_speaker_delays_meters() {
+        let speakers: Vec<SpeakerForUI> = vec![
+            SpeakerForUI {
+                speaker: "l".to_string(),
+                crossover: Some(80),
+                distance: 0.0,
+                gain: 1.0,
+                is_subwoofer: false,
+            },
+            SpeakerForUI {
+                speaker: "r".to_string(),
+                crossover: Some(80),
+                distance: 0.0,
+                gain: 1.0,
+                is_subwoofer: false,
+            },
+            SpeakerForUI {
+                speaker: "c".to_string(),
+                crossover: Some(80),
+                distance: 1.0,
+                gain: 1.0,
+                is_subwoofer: false,
+            },
+            SpeakerForUI {
+                speaker: "sub1".to_string(),
+                crossover: None,
+                distance: 3.0,
+                gain: 1.0,
+                is_subwoofer: true,
+            },
+            SpeakerForUI {
+                speaker: "sub2".to_string(),
+                crossover: None,
+                distance: 3.0,
+                gain: 1.0,
+                is_subwoofer: true,
+            },
+        ];
+        let speakers = update_speaker_delays(&SelectedDistanceType::METERS, &speakers);
+        assert_eq!(speakers[0].delay, 3.0 / METERS_PER_MS);
+        assert_eq!(speakers[1].delay, 3.0 / METERS_PER_MS);
+        assert_eq!(speakers[2].delay, 2.0 / METERS_PER_MS);
+        assert_eq!(speakers[3].delay, 0.0 / METERS_PER_MS);
+        assert_eq!(speakers[4].delay, 0.0 / METERS_PER_MS);
+    }
+
+    #[test]
+    fn test_update_speaker_delays_feet() {
+        let speakers: Vec<SpeakerForUI> = vec![
+            SpeakerForUI {
+                speaker: "l".to_string(),
+                crossover: Some(80),
+                distance: 0.0,
+                gain: 1.0,
+                is_subwoofer: false,
+            },
+            SpeakerForUI {
+                speaker: "r".to_string(),
+                crossover: Some(80),
+                distance: 0.0,
+                gain: 1.0,
+                is_subwoofer: false,
+            },
+            SpeakerForUI {
+                speaker: "c".to_string(),
+                crossover: Some(80),
+                distance: 1.0,
+                gain: 1.0,
+                is_subwoofer: false,
+            },
+            SpeakerForUI {
+                speaker: "sub1".to_string(),
+                crossover: None,
+                distance: 3.0,
+                gain: 1.0,
+                is_subwoofer: true,
+            },
+            SpeakerForUI {
+                speaker: "sub2".to_string(),
+                crossover: None,
+                distance: 3.0,
+                gain: 1.0,
+                is_subwoofer: true,
+            },
+        ];
+        let speakers = update_speaker_delays(&SelectedDistanceType::FEET, &speakers);
+        assert_eq!(speakers[0].delay, 3.0 / FEET_PER_MS);
+        assert_eq!(speakers[1].delay, 3.0 / FEET_PER_MS);
+        assert_eq!(speakers[2].delay, 2.0 / FEET_PER_MS);
+        assert_eq!(speakers[3].delay, 0.0 / FEET_PER_MS);
+        assert_eq!(speakers[4].delay, 0.0 / FEET_PER_MS);
+    }
+    #[test]
+    fn test_update_speaker_delays_ms() {
+        let speakers: Vec<SpeakerForUI> = vec![
+            SpeakerForUI {
+                speaker: "l".to_string(),
+                crossover: Some(80),
+                distance: 0.0,
+                gain: 1.0,
+                is_subwoofer: false,
+            },
+            SpeakerForUI {
+                speaker: "r".to_string(),
+                crossover: Some(80),
+                distance: 0.0,
+                gain: 1.0,
+                is_subwoofer: false,
+            },
+            SpeakerForUI {
+                speaker: "c".to_string(),
+                crossover: Some(80),
+                distance: 1.0,
+                gain: 1.0,
+                is_subwoofer: false,
+            },
+            SpeakerForUI {
+                speaker: "sub1".to_string(),
+                crossover: None,
+                distance: 3.0,
+                gain: 1.0,
+                is_subwoofer: true,
+            },
+            SpeakerForUI {
+                speaker: "sub2".to_string(),
+                crossover: None,
+                distance: 3.0,
+                gain: 1.0,
+                is_subwoofer: true,
+            },
+        ];
+        let speakers = update_speaker_delays(&SelectedDistanceType::MS, &speakers);
+        assert_eq!(speakers[0].delay, 0.0);
+        assert_eq!(speakers[1].delay, 0.0);
+        assert_eq!(speakers[2].delay, 1.0);
+        assert_eq!(speakers[3].delay, 3.0);
+        assert_eq!(speakers[4].delay, 3.0);
+    }
     #[test]
     fn check_processor_to_camilla_one_sub() {
-        let settings = ProcessorSettings {
+        let settings = ProcessorSettingsForCamilla {
             filters: vec![
                 Filter {
                     freq: 1000,
@@ -373,20 +746,17 @@ mod tests {
                     is_subwoofer: true,
                 },
             ],
+            selected_distance: SelectedDistanceType::MS,
         };
-        /*println!(
-            "yaml: {}",
-            convert_processor_settings_to_camilla(&settings).unwrap()
-        );*/
         assert_eq!(
             convert_processor_settings_to_camilla(&settings).unwrap(),
-            r#"{"mixers":{"combine_sub":{"channels":{"in":7,"out":4},"mapping":[{"sources":[{"channel":2,"gain":0,"inverted":false}],"dest":1},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":0},{"sources":[{"channel":4,"gain":0,"inverted":false}],"dest":2},{"sources":[{"channel":1,"gain":0,"inverted":false},{"channel":3,"gain":0,"inverted":false},{"channel":5,"gain":0,"inverted":false},{"channel":6,"gain":0,"inverted":false}],"dest":3}]},"split_non_sub":{"channels":{"in":4,"out":7},"mapping":[{"sources":[{"channel":1,"gain":0,"inverted":false}],"dest":2},{"sources":[{"channel":1,"gain":0,"inverted":false}],"dest":3},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":0},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":1},{"sources":[{"channel":2,"gain":0,"inverted":false}],"dest":4},{"sources":[{"channel":2,"gain":0,"inverted":false}],"dest":5},{"sources":[{"channel":3,"gain":0,"inverted":false}],"dest":6}]}},"filters":{"crossover_speaker_c":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthHighpass"}},"crossover_speaker_l":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthHighpass"}},"crossover_speaker_r":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthHighpass"}},"crossover_subwooferc":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthLowpass"}},"crossover_subwooferl":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthLowpass"}},"crossover_subwooferr":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthLowpass"}},"delay_c":{"type":"Delay","parameters":{"delay":10,"unit":"ms"}},"delay_l":{"type":"Delay","parameters":{"delay":10,"unit":"ms"}},"delay_r":{"type":"Delay","parameters":{"delay":10,"unit":"ms"}},"delay_sub1":{"type":"Delay","parameters":{"delay":10,"unit":"ms"}},"gain_c":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_l":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_r":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_sub1":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"peq_l_0":{"type":"Biquad","parameters":{"freq":1000,"q":0.707,"gain":2.0,"type":"Peaking"}},"peq_l_1":{"type":"Biquad","parameters":{"freq":2000,"q":0.707,"gain":2.0,"type":"Peaking"}},"peq_r_2":{"type":"Biquad","parameters":{"freq":2000,"q":0.707,"gain":1.0,"type":"Peaking"}}},"pipeline":[{"type":"Mixer","name":"split_non_sub"},{"type":"Filter","channel":2,"names":["crossover_speaker_c"]},{"type":"Filter","channel":3,"names":["crossover_subwooferc"]},{"type":"Filter","channel":0,"names":["crossover_speaker_l"]},{"type":"Filter","channel":1,"names":["crossover_subwooferl"]},{"type":"Filter","channel":4,"names":["crossover_speaker_r"]},{"type":"Filter","channel":5,"names":["crossover_subwooferr"]},{"type":"Mixer","name":"combine_sub"},{"type":"Filter","channel":0,"names":["peq_l_0","peq_l_1","delay_l","gain_l"]},{"type":"Filter","channel":1,"names":["delay_c","gain_c"]},{"type":"Filter","channel":2,"names":["peq_r_2","delay_r","gain_r"]},{"type":"Filter","channel":3,"names":["delay_sub1","gain_sub1"]}]}"#
+            r#"{"mixers":{"combine_sub":{"channels":{"in":7,"out":4},"mapping":[{"sources":[{"channel":2,"gain":0,"inverted":false}],"dest":1},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":0},{"sources":[{"channel":4,"gain":0,"inverted":false}],"dest":2},{"sources":[{"channel":1,"gain":0,"inverted":false},{"channel":3,"gain":0,"inverted":false},{"channel":5,"gain":0,"inverted":false},{"channel":6,"gain":0,"inverted":false}],"dest":3}]},"split_non_sub":{"channels":{"in":4,"out":7},"mapping":[{"sources":[{"channel":1,"gain":0,"inverted":false}],"dest":2},{"sources":[{"channel":1,"gain":0,"inverted":false}],"dest":3},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":0},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":1},{"sources":[{"channel":2,"gain":0,"inverted":false}],"dest":4},{"sources":[{"channel":2,"gain":0,"inverted":false}],"dest":5},{"sources":[{"channel":3,"gain":0,"inverted":false}],"dest":6}]}},"filters":{"crossover_speaker_c":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthHighpass"}},"crossover_speaker_l":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthHighpass"}},"crossover_speaker_r":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthHighpass"}},"crossover_subwooferc":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthLowpass"}},"crossover_subwooferl":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthLowpass"}},"crossover_subwooferr":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthLowpass"}},"delay_c":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"delay_l":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"delay_r":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"delay_sub1":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"gain_c":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_l":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_r":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_sub1":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"peq_l_0":{"type":"Biquad","parameters":{"freq":1000,"q":0.707,"gain":2.0,"type":"Peaking"}},"peq_l_1":{"type":"Biquad","parameters":{"freq":2000,"q":0.707,"gain":2.0,"type":"Peaking"}},"peq_r_2":{"type":"Biquad","parameters":{"freq":2000,"q":0.707,"gain":1.0,"type":"Peaking"}}},"pipeline":[{"type":"Mixer","name":"split_non_sub"},{"type":"Filter","channel":2,"names":["crossover_speaker_c"]},{"type":"Filter","channel":3,"names":["crossover_subwooferc"]},{"type":"Filter","channel":0,"names":["crossover_speaker_l"]},{"type":"Filter","channel":1,"names":["crossover_subwooferl"]},{"type":"Filter","channel":4,"names":["crossover_speaker_r"]},{"type":"Filter","channel":5,"names":["crossover_subwooferr"]},{"type":"Mixer","name":"combine_sub"},{"type":"Filter","channel":0,"names":["peq_l_0","peq_l_1","delay_l","gain_l"]},{"type":"Filter","channel":1,"names":["delay_c","gain_c"]},{"type":"Filter","channel":2,"names":["peq_r_2","delay_r","gain_r"]},{"type":"Filter","channel":3,"names":["delay_sub1","gain_sub1"]}]}"#
         )
     }
 
     #[test]
     fn check_processor_to_camilla_two_sub() {
-        let settings = ProcessorSettings {
+        let settings = ProcessorSettingsForCamilla {
             filters: vec![
                 Filter {
                     freq: 1000,
@@ -444,16 +814,17 @@ mod tests {
                     is_subwoofer: true,
                 },
             ],
+            selected_distance: SelectedDistanceType::MS,
         };
 
         assert_eq!(
             convert_processor_settings_to_camilla(&settings).unwrap(),
-            r#"{"mixers":{"combine_sub":{"channels":{"in":7,"out":5},"mapping":[{"sources":[{"channel":2,"gain":0,"inverted":false}],"dest":1},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":0},{"sources":[{"channel":4,"gain":0,"inverted":false}],"dest":2},{"sources":[{"channel":1,"gain":0,"inverted":false},{"channel":3,"gain":0,"inverted":false},{"channel":5,"gain":0,"inverted":false},{"channel":6,"gain":0,"inverted":false}],"dest":3},{"sources":[{"channel":1,"gain":0,"inverted":false},{"channel":3,"gain":0,"inverted":false},{"channel":5,"gain":0,"inverted":false},{"channel":6,"gain":0,"inverted":false}],"dest":4}]},"split_non_sub":{"channels":{"in":4,"out":7},"mapping":[{"sources":[{"channel":1,"gain":0,"inverted":false}],"dest":2},{"sources":[{"channel":1,"gain":0,"inverted":false}],"dest":3},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":0},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":1},{"sources":[{"channel":2,"gain":0,"inverted":false}],"dest":4},{"sources":[{"channel":2,"gain":0,"inverted":false}],"dest":5},{"sources":[{"channel":3,"gain":0,"inverted":false}],"dest":6}]}},"filters":{"crossover_speaker_c":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthHighpass"}},"crossover_speaker_l":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthHighpass"}},"crossover_speaker_r":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthHighpass"}},"crossover_subwooferc":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthLowpass"}},"crossover_subwooferl":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthLowpass"}},"crossover_subwooferr":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthLowpass"}},"delay_c":{"type":"Delay","parameters":{"delay":10,"unit":"ms"}},"delay_l":{"type":"Delay","parameters":{"delay":10,"unit":"ms"}},"delay_r":{"type":"Delay","parameters":{"delay":10,"unit":"ms"}},"delay_sub1":{"type":"Delay","parameters":{"delay":10,"unit":"ms"}},"delay_sub2":{"type":"Delay","parameters":{"delay":10,"unit":"ms"}},"gain_c":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_l":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_r":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_sub1":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_sub2":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"peq_l_0":{"type":"Biquad","parameters":{"freq":1000,"q":0.707,"gain":2.0,"type":"Peaking"}},"peq_l_1":{"type":"Biquad","parameters":{"freq":2000,"q":0.707,"gain":2.0,"type":"Peaking"}},"peq_r_2":{"type":"Biquad","parameters":{"freq":2000,"q":0.707,"gain":1.0,"type":"Peaking"}}},"pipeline":[{"type":"Mixer","name":"split_non_sub"},{"type":"Filter","channel":2,"names":["crossover_speaker_c"]},{"type":"Filter","channel":3,"names":["crossover_subwooferc"]},{"type":"Filter","channel":0,"names":["crossover_speaker_l"]},{"type":"Filter","channel":1,"names":["crossover_subwooferl"]},{"type":"Filter","channel":4,"names":["crossover_speaker_r"]},{"type":"Filter","channel":5,"names":["crossover_subwooferr"]},{"type":"Mixer","name":"combine_sub"},{"type":"Filter","channel":0,"names":["peq_l_0","peq_l_1","delay_l","gain_l"]},{"type":"Filter","channel":1,"names":["delay_c","gain_c"]},{"type":"Filter","channel":2,"names":["peq_r_2","delay_r","gain_r"]},{"type":"Filter","channel":3,"names":["delay_sub1","gain_sub1"]},{"type":"Filter","channel":4,"names":["delay_sub2","gain_sub2"]}]}"#
+            r#"{"mixers":{"combine_sub":{"channels":{"in":7,"out":5},"mapping":[{"sources":[{"channel":2,"gain":0,"inverted":false}],"dest":1},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":0},{"sources":[{"channel":4,"gain":0,"inverted":false}],"dest":2},{"sources":[{"channel":1,"gain":0,"inverted":false},{"channel":3,"gain":0,"inverted":false},{"channel":5,"gain":0,"inverted":false},{"channel":6,"gain":0,"inverted":false}],"dest":3},{"sources":[{"channel":1,"gain":0,"inverted":false},{"channel":3,"gain":0,"inverted":false},{"channel":5,"gain":0,"inverted":false},{"channel":6,"gain":0,"inverted":false}],"dest":4}]},"split_non_sub":{"channels":{"in":4,"out":7},"mapping":[{"sources":[{"channel":1,"gain":0,"inverted":false}],"dest":2},{"sources":[{"channel":1,"gain":0,"inverted":false}],"dest":3},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":0},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":1},{"sources":[{"channel":2,"gain":0,"inverted":false}],"dest":4},{"sources":[{"channel":2,"gain":0,"inverted":false}],"dest":5},{"sources":[{"channel":3,"gain":0,"inverted":false}],"dest":6}]}},"filters":{"crossover_speaker_c":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthHighpass"}},"crossover_speaker_l":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthHighpass"}},"crossover_speaker_r":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthHighpass"}},"crossover_subwooferc":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthLowpass"}},"crossover_subwooferl":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthLowpass"}},"crossover_subwooferr":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthLowpass"}},"delay_c":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"delay_l":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"delay_r":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"delay_sub1":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"delay_sub2":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"gain_c":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_l":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_r":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_sub1":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_sub2":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"peq_l_0":{"type":"Biquad","parameters":{"freq":1000,"q":0.707,"gain":2.0,"type":"Peaking"}},"peq_l_1":{"type":"Biquad","parameters":{"freq":2000,"q":0.707,"gain":2.0,"type":"Peaking"}},"peq_r_2":{"type":"Biquad","parameters":{"freq":2000,"q":0.707,"gain":1.0,"type":"Peaking"}}},"pipeline":[{"type":"Mixer","name":"split_non_sub"},{"type":"Filter","channel":2,"names":["crossover_speaker_c"]},{"type":"Filter","channel":3,"names":["crossover_subwooferc"]},{"type":"Filter","channel":0,"names":["crossover_speaker_l"]},{"type":"Filter","channel":1,"names":["crossover_subwooferl"]},{"type":"Filter","channel":4,"names":["crossover_speaker_r"]},{"type":"Filter","channel":5,"names":["crossover_subwooferr"]},{"type":"Mixer","name":"combine_sub"},{"type":"Filter","channel":0,"names":["peq_l_0","peq_l_1","delay_l","gain_l"]},{"type":"Filter","channel":1,"names":["delay_c","gain_c"]},{"type":"Filter","channel":2,"names":["peq_r_2","delay_r","gain_r"]},{"type":"Filter","channel":3,"names":["delay_sub1","gain_sub1"]},{"type":"Filter","channel":4,"names":["delay_sub2","gain_sub2"]}]}"#
         )
     }
     #[test]
     fn check_processor_to_camilla_two_sub_no_crossover() {
-        let settings = ProcessorSettings {
+        let settings = ProcessorSettingsForCamilla {
             filters: vec![
                 Filter {
                     freq: 1000,
@@ -511,16 +882,17 @@ mod tests {
                     is_subwoofer: true,
                 },
             ],
+            selected_distance: SelectedDistanceType::MS,
         };
 
         assert_eq!(
             convert_processor_settings_to_camilla(&settings).unwrap(),
-            r#"{"mixers":{"combine_sub":{"channels":{"in":4,"out":5},"mapping":[{"sources":[{"channel":1,"gain":0,"inverted":false}],"dest":1},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":0},{"sources":[{"channel":2,"gain":0,"inverted":false}],"dest":2},{"sources":[{"channel":3,"gain":0,"inverted":false}],"dest":3},{"sources":[{"channel":3,"gain":0,"inverted":false}],"dest":4}]},"split_non_sub":{"channels":{"in":4,"out":4},"mapping":[{"sources":[{"channel":1,"gain":0,"inverted":false}],"dest":1},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":0},{"sources":[{"channel":2,"gain":0,"inverted":false}],"dest":2},{"sources":[{"channel":3,"gain":0,"inverted":false}],"dest":3}]}},"filters":{"delay_c":{"type":"Delay","parameters":{"delay":10,"unit":"ms"}},"delay_l":{"type":"Delay","parameters":{"delay":10,"unit":"ms"}},"delay_r":{"type":"Delay","parameters":{"delay":10,"unit":"ms"}},"delay_sub1":{"type":"Delay","parameters":{"delay":10,"unit":"ms"}},"delay_sub2":{"type":"Delay","parameters":{"delay":10,"unit":"ms"}},"gain_c":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_l":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_r":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_sub1":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_sub2":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"peq_l_0":{"type":"Biquad","parameters":{"freq":1000,"q":0.707,"gain":2.0,"type":"Peaking"}},"peq_l_1":{"type":"Biquad","parameters":{"freq":2000,"q":0.707,"gain":2.0,"type":"Peaking"}},"peq_r_2":{"type":"Biquad","parameters":{"freq":2000,"q":0.707,"gain":1.0,"type":"Peaking"}}},"pipeline":[{"type":"Mixer","name":"split_non_sub"},{"type":"Mixer","name":"combine_sub"},{"type":"Filter","channel":0,"names":["peq_l_0","peq_l_1","delay_l","gain_l"]},{"type":"Filter","channel":1,"names":["delay_c","gain_c"]},{"type":"Filter","channel":2,"names":["peq_r_2","delay_r","gain_r"]},{"type":"Filter","channel":3,"names":["delay_sub1","gain_sub1"]},{"type":"Filter","channel":4,"names":["delay_sub2","gain_sub2"]}]}"#
+            r#"{"mixers":{"combine_sub":{"channels":{"in":4,"out":5},"mapping":[{"sources":[{"channel":1,"gain":0,"inverted":false}],"dest":1},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":0},{"sources":[{"channel":2,"gain":0,"inverted":false}],"dest":2},{"sources":[{"channel":3,"gain":0,"inverted":false}],"dest":3},{"sources":[{"channel":3,"gain":0,"inverted":false}],"dest":4}]},"split_non_sub":{"channels":{"in":4,"out":4},"mapping":[{"sources":[{"channel":1,"gain":0,"inverted":false}],"dest":1},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":0},{"sources":[{"channel":2,"gain":0,"inverted":false}],"dest":2},{"sources":[{"channel":3,"gain":0,"inverted":false}],"dest":3}]}},"filters":{"delay_c":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"delay_l":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"delay_r":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"delay_sub1":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"delay_sub2":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"gain_c":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_l":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_r":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_sub1":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_sub2":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"peq_l_0":{"type":"Biquad","parameters":{"freq":1000,"q":0.707,"gain":2.0,"type":"Peaking"}},"peq_l_1":{"type":"Biquad","parameters":{"freq":2000,"q":0.707,"gain":2.0,"type":"Peaking"}},"peq_r_2":{"type":"Biquad","parameters":{"freq":2000,"q":0.707,"gain":1.0,"type":"Peaking"}}},"pipeline":[{"type":"Mixer","name":"split_non_sub"},{"type":"Mixer","name":"combine_sub"},{"type":"Filter","channel":0,"names":["peq_l_0","peq_l_1","delay_l","gain_l"]},{"type":"Filter","channel":1,"names":["delay_c","gain_c"]},{"type":"Filter","channel":2,"names":["peq_r_2","delay_r","gain_r"]},{"type":"Filter","channel":3,"names":["delay_sub1","gain_sub1"]},{"type":"Filter","channel":4,"names":["delay_sub2","gain_sub2"]}]}"#
         )
     }
     #[test]
     fn check_processor_to_camilla_two_sub_partial_crossover() {
-        let settings = ProcessorSettings {
+        let settings = ProcessorSettingsForCamilla {
             filters: vec![
                 Filter {
                     freq: 1000,
@@ -578,11 +950,12 @@ mod tests {
                     is_subwoofer: true,
                 },
             ],
+            selected_distance: SelectedDistanceType::MS,
         };
 
         assert_eq!(
             convert_processor_settings_to_camilla(&settings).unwrap(),
-            r#"{"mixers":{"combine_sub":{"channels":{"in":5,"out":5},"mapping":[{"sources":[{"channel":2,"gain":0,"inverted":false}],"dest":1},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":0},{"sources":[{"channel":3,"gain":0,"inverted":false}],"dest":2},{"sources":[{"channel":1,"gain":0,"inverted":false},{"channel":4,"gain":0,"inverted":false}],"dest":3},{"sources":[{"channel":1,"gain":0,"inverted":false},{"channel":4,"gain":0,"inverted":false}],"dest":4}]},"split_non_sub":{"channels":{"in":4,"out":5},"mapping":[{"sources":[{"channel":1,"gain":0,"inverted":false}],"dest":2},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":0},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":1},{"sources":[{"channel":2,"gain":0,"inverted":false}],"dest":3},{"sources":[{"channel":3,"gain":0,"inverted":false}],"dest":4}]}},"filters":{"crossover_speaker_l":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthHighpass"}},"crossover_subwooferl":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthLowpass"}},"delay_c":{"type":"Delay","parameters":{"delay":10,"unit":"ms"}},"delay_l":{"type":"Delay","parameters":{"delay":10,"unit":"ms"}},"delay_r":{"type":"Delay","parameters":{"delay":10,"unit":"ms"}},"delay_sub1":{"type":"Delay","parameters":{"delay":10,"unit":"ms"}},"delay_sub2":{"type":"Delay","parameters":{"delay":10,"unit":"ms"}},"gain_c":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_l":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_r":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_sub1":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_sub2":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"peq_l_0":{"type":"Biquad","parameters":{"freq":1000,"q":0.707,"gain":2.0,"type":"Peaking"}},"peq_l_1":{"type":"Biquad","parameters":{"freq":2000,"q":0.707,"gain":2.0,"type":"Peaking"}},"peq_r_2":{"type":"Biquad","parameters":{"freq":2000,"q":0.707,"gain":1.0,"type":"Peaking"}}},"pipeline":[{"type":"Mixer","name":"split_non_sub"},{"type":"Filter","channel":0,"names":["crossover_speaker_l"]},{"type":"Filter","channel":1,"names":["crossover_subwooferl"]},{"type":"Mixer","name":"combine_sub"},{"type":"Filter","channel":0,"names":["peq_l_0","peq_l_1","delay_l","gain_l"]},{"type":"Filter","channel":1,"names":["delay_c","gain_c"]},{"type":"Filter","channel":2,"names":["peq_r_2","delay_r","gain_r"]},{"type":"Filter","channel":3,"names":["delay_sub1","gain_sub1"]},{"type":"Filter","channel":4,"names":["delay_sub2","gain_sub2"]}]}"#
+            r#"{"mixers":{"combine_sub":{"channels":{"in":5,"out":5},"mapping":[{"sources":[{"channel":2,"gain":0,"inverted":false}],"dest":1},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":0},{"sources":[{"channel":3,"gain":0,"inverted":false}],"dest":2},{"sources":[{"channel":1,"gain":0,"inverted":false},{"channel":4,"gain":0,"inverted":false}],"dest":3},{"sources":[{"channel":1,"gain":0,"inverted":false},{"channel":4,"gain":0,"inverted":false}],"dest":4}]},"split_non_sub":{"channels":{"in":4,"out":5},"mapping":[{"sources":[{"channel":1,"gain":0,"inverted":false}],"dest":2},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":0},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":1},{"sources":[{"channel":2,"gain":0,"inverted":false}],"dest":3},{"sources":[{"channel":3,"gain":0,"inverted":false}],"dest":4}]}},"filters":{"crossover_speaker_l":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthHighpass"}},"crossover_subwooferl":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthLowpass"}},"delay_c":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"delay_l":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"delay_r":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"delay_sub1":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"delay_sub2":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"gain_c":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_l":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_r":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_sub1":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_sub2":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"peq_l_0":{"type":"Biquad","parameters":{"freq":1000,"q":0.707,"gain":2.0,"type":"Peaking"}},"peq_l_1":{"type":"Biquad","parameters":{"freq":2000,"q":0.707,"gain":2.0,"type":"Peaking"}},"peq_r_2":{"type":"Biquad","parameters":{"freq":2000,"q":0.707,"gain":1.0,"type":"Peaking"}}},"pipeline":[{"type":"Mixer","name":"split_non_sub"},{"type":"Filter","channel":0,"names":["crossover_speaker_l"]},{"type":"Filter","channel":1,"names":["crossover_subwooferl"]},{"type":"Mixer","name":"combine_sub"},{"type":"Filter","channel":0,"names":["peq_l_0","peq_l_1","delay_l","gain_l"]},{"type":"Filter","channel":1,"names":["delay_c","gain_c"]},{"type":"Filter","channel":2,"names":["peq_r_2","delay_r","gain_r"]},{"type":"Filter","channel":3,"names":["delay_sub1","gain_sub1"]},{"type":"Filter","channel":4,"names":["delay_sub2","gain_sub2"]}]}"#
         )
     }
 }
