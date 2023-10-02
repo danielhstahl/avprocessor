@@ -26,7 +26,7 @@ const AdvancedComponent: React.FC = () => {
     return <>
         {contextHolder}
         <Row>
-            <Col xs={24} md={12} lg={8}>
+            <Col xs={24} md={12}>
                 <Title level={4}>Configuration Versions</Title>
                 <List
                     itemLayout="horizontal"
@@ -39,7 +39,7 @@ const AdvancedComponent: React.FC = () => {
                     </List.Item>}
                 />
             </Col>
-            <Col xs={24} md={12} lg={8}>
+            <Col xs={24} md={12}>
                 <Title level={4}>Distance/Delay</Title>
                 <Select
                     value={delayType}
