@@ -23,6 +23,10 @@ Install sqlx cli to enable rust to compile without a database.  This needs to be
 `cargo sqlx prepare`
 This creates the sqlx-data.json which allows the binary to be recompiled without the actual database existing.
 
+# UI
+
+The UI is scaffolded from create-react-app and is written in Typescript.  To run, `cd avprocessor-ui` and `npm start`.
+
 # Workflow and architecture
 
 The backend is a simple sqlite database.  There are five tables:
@@ -38,3 +42,4 @@ The computation for delays are relatively straightforward.  The longest distance
 
 * Add docstrings to the relevant rust functions
 * See if there is a way to combine or at least make more DRY `get_config_for_camilla_from_db` and `get_config_from_db`.
+* Add static hosting of transpiled javascript/html.
