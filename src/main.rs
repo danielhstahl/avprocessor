@@ -28,6 +28,45 @@ use processor::{
 #[database("settings")]
 struct Settings(sqlx::SqlitePool);
 
+#[derive(Serialize)]
+#[serde(crate = "rocket::serde")]
+struct CamillaConfig {
+    mixers: BTreeMap<String, Mixer>,
+    filters: BTreeMap<String, SpeakerAdjust>,
+    pipeline: Vec<Pipeline>,
+}
+
+#[derive(Serialize, sqlx::FromRow)]
+#[serde(crate = "rocket::serde", rename_all = "camelCase")]
+struct Version {
+    version: i32,
+    applied_version: bool,
+    version_date: String,
+}
+
+#[derive(sqlx::FromRow)]
+struct ConfigVersion {
+    version: i32,
+}
+
+#[derive(sqlx::FromRow)]
+struct SelectedDistanceWrapper {
+    selected_distance: SelectedDistanceType,
+}
+
+#[derive(Serialize)]
+#[serde(crate = "rocket::serde")]
+struct SetConfig {
+    #[serde(rename = "SetConfigJson")]
+    set_config_json: String,
+}
+
+//this is used purely to store state and pass to mixer and filter creators
+struct ConfigurationMapping<'a> {
+    peq_filters: BTreeMap<&'a String, Vec<(usize, &'a Filter)>>,
+    speaker_counts: SpeakerCounts,
+}
+
 async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
     if let Some(db) = Settings::fetch(&rocket) {
         let _1 = sqlx::query(
@@ -91,20 +130,6 @@ async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
     }
 }
 
-#[derive(Serialize)]
-#[serde(crate = "rocket::serde")]
-struct CamillaConfig {
-    mixers: BTreeMap<String, Mixer>,
-    filters: BTreeMap<String, SpeakerAdjust>,
-    pipeline: Vec<Pipeline>,
-}
-
-//this is used purely to store state and pass to mixer and filter creators
-struct ConfigurationMapping<'a> {
-    peq_filters: BTreeMap<&'a String, Vec<(usize, &'a Filter)>>,
-    speaker_counts: SpeakerCounts,
-}
-
 fn convert_processor_settings_to_camilla(
     settings: &ProcessorSettingsForCamilla,
 ) -> Result<String, json::serde_json::Error> {
@@ -160,75 +185,6 @@ fn convert_processor_settings_to_camilla(
     }
 }
 
-#[derive(Serialize, sqlx::FromRow)]
-#[serde(crate = "rocket::serde", rename_all = "camelCase")]
-struct Version {
-    version: i32,
-    applied_version: bool,
-    version_date: String,
-}
-#[get("/versions")]
-async fn get_versions(
-    mut db: Connection<Settings>,
-) -> Result<Json<Vec<Version>>, BadRequest<String>> {
-    let versions = sqlx::query_as!(
-        Version,
-        r#"
-        SELECT 
-        t1.version as "version: i32", 
-        t1.version_date,
-        case when 
-            t2.version is null then false 
-            else true 
-        end as "applied_version: bool"
-        FROM versions t1 
-        left join applied_version t2 
-        on t1.version=t2.version
-        "#,
-    )
-    .fetch_all(&mut *db)
-    .await
-    .map_err(|e| BadRequest(Some(e.to_string())))?;
-
-    Ok(Json(versions))
-}
-
-#[derive(sqlx::FromRow)]
-struct ConfigVersion {
-    version: i32,
-}
-#[get("/config/latest")]
-async fn config_latest(
-    mut db: Connection<Settings>,
-) -> Result<Json<ProcessorSettings>, BadRequest<String>> {
-    let ConfigVersion { version } = sqlx::query_as!(
-        ConfigVersion,
-        r#"SELECT max(version) as "version!: i32"  from versions"#
-    )
-    .fetch_one(&mut *db)
-    .await
-    .map_err(|e| BadRequest(Some(e.to_string())))?;
-    get_config_from_db(&mut db, version)
-        .await
-        .map(|v| Json(v))
-        .map_err(|e| BadRequest(Some(e.to_string())))
-}
-
-#[get("/config/<version>")]
-async fn config_version(
-    mut db: Connection<Settings>,
-    version: i32,
-) -> Result<Json<ProcessorSettings>, BadRequest<String>> {
-    get_config_from_db(&mut db, version)
-        .await
-        .map(|v| Json(v))
-        .map_err(|e| BadRequest(Some(e.to_string())))
-}
-
-#[derive(sqlx::FromRow)]
-struct SelectedDistanceWrapper {
-    selected_distance: SelectedDistanceType,
-}
 async fn get_config_for_camilla_from_db(
     db: &mut Connection<Settings>,
     version: i32,
@@ -240,7 +196,6 @@ async fn get_config_for_camilla_from_db(
         from versions where version=?"#,
         version
     )
-    //.bind(version)
     .fetch_one(&mut **db)
     .await?;
     let filters = sqlx::query_as!(
@@ -252,7 +207,6 @@ async fn get_config_for_camilla_from_db(
         from filters where version=?"#,
         version
     )
-    //.bind(version)
     .fetch_all(&mut **db)
     .await?;
     let speakers = sqlx::query_as!(
@@ -313,7 +267,6 @@ async fn get_config_from_db(
         from speakers_settings_for_ui where version=?"#,
         version,
     )
-    //.bind(version)
     .fetch_all(&mut **db)
     .await?;
     Ok(ProcessorSettings {
@@ -321,50 +274,6 @@ async fn get_config_from_db(
         speakers,
         selected_distance,
     })
-}
-
-use tungstenite::{connect, Message};
-use url::Url;
-
-#[derive(Serialize)]
-#[serde(crate = "rocket::serde")]
-struct SetConfig {
-    #[serde(rename = "SetConfigJson")]
-    set_config_json: String,
-}
-
-#[post("/config/apply/<version>", format = "application/json")]
-async fn apply_config_version(
-    mut db: Connection<Settings>,
-    version: i32,
-    camilla_dsp_url: &State<String>,
-) -> Result<(), BadRequest<String>> {
-    let settings = get_config_for_camilla_from_db(&mut db, version)
-        .await
-        .map_err(|e| BadRequest(Some(e.to_string())))?;
-    let config = convert_processor_settings_to_camilla(&settings)
-        .map_err(|e| BadRequest(Some(e.to_string())))?;
-
-    let ws_url = Url::parse(camilla_dsp_url).map_err(|e| BadRequest(Some(e.to_string())))?;
-    let (mut socket, _response) = connect(ws_url).map_err(|e| BadRequest(Some(e.to_string())))?;
-    let config_as_json = json::to_string(&SetConfig {
-        set_config_json: config,
-    })
-    .map_err(|e| BadRequest(Some(e.to_string())))?;
-    socket
-        .send(Message::Text(config_as_json))
-        .map_err(|e| BadRequest(Some(e.to_string())))?;
-
-    let _ = sqlx::query!("DELETE from applied_version")
-        .execute(&mut *db)
-        .await
-        .map_err(|e| BadRequest(Some(e.to_string())))?;
-    let _ = sqlx::query!("INSERT INTO applied_version (version) VALUES (?)", version)
-        .execute(&mut *db)
-        .await
-        .map_err(|e| BadRequest(Some(e.to_string())))?;
-
-    Ok(())
 }
 
 const METERS_PER_MS: f32 = 0.3430;
@@ -421,6 +330,95 @@ fn update_speaker_delays(
         })
         .collect()
 }
+use tungstenite::{connect, Message};
+use url::Url;
+
+#[get("/versions")]
+async fn get_versions(
+    mut db: Connection<Settings>,
+) -> Result<Json<Vec<Version>>, BadRequest<String>> {
+    let versions = sqlx::query_as!(
+        Version,
+        r#"
+        SELECT 
+        t1.version as "version: i32", 
+        t1.version_date,
+        case when 
+            t2.version is null then false 
+            else true 
+        end as "applied_version: bool"
+        FROM versions t1 
+        left join applied_version t2 
+        on t1.version=t2.version
+        "#,
+    )
+    .fetch_all(&mut *db)
+    .await
+    .map_err(|e| BadRequest(Some(e.to_string())))?;
+
+    Ok(Json(versions))
+}
+#[get("/config/latest")]
+async fn config_latest(
+    mut db: Connection<Settings>,
+) -> Result<Json<ProcessorSettings>, BadRequest<String>> {
+    let ConfigVersion { version } = sqlx::query_as!(
+        ConfigVersion,
+        r#"SELECT max(version) as "version!: i32"  from versions"#
+    )
+    .fetch_one(&mut *db)
+    .await
+    .map_err(|e| BadRequest(Some(e.to_string())))?;
+    get_config_from_db(&mut db, version)
+        .await
+        .map(|v| Json(v))
+        .map_err(|e| BadRequest(Some(e.to_string())))
+}
+
+#[get("/config/<version>")]
+async fn config_version(
+    mut db: Connection<Settings>,
+    version: i32,
+) -> Result<Json<ProcessorSettings>, BadRequest<String>> {
+    get_config_from_db(&mut db, version)
+        .await
+        .map(|v| Json(v))
+        .map_err(|e| BadRequest(Some(e.to_string())))
+}
+
+#[post("/config/apply/<version>", format = "application/json")]
+async fn apply_config_version(
+    mut db: Connection<Settings>,
+    version: i32,
+    camilla_dsp_url: &State<String>,
+) -> Result<(), BadRequest<String>> {
+    let settings = get_config_for_camilla_from_db(&mut db, version)
+        .await
+        .map_err(|e| BadRequest(Some(e.to_string())))?;
+    let config = convert_processor_settings_to_camilla(&settings)
+        .map_err(|e| BadRequest(Some(e.to_string())))?;
+
+    let ws_url = Url::parse(camilla_dsp_url).map_err(|e| BadRequest(Some(e.to_string())))?;
+    let (mut socket, _response) = connect(ws_url).map_err(|e| BadRequest(Some(e.to_string())))?;
+    let config_as_json = json::to_string(&SetConfig {
+        set_config_json: config,
+    })
+    .map_err(|e| BadRequest(Some(e.to_string())))?;
+    socket
+        .send(Message::Text(config_as_json))
+        .map_err(|e| BadRequest(Some(e.to_string())))?;
+
+    let _ = sqlx::query!("DELETE from applied_version")
+        .execute(&mut *db)
+        .await
+        .map_err(|e| BadRequest(Some(e.to_string())))?;
+    let _ = sqlx::query!("INSERT INTO applied_version (version) VALUES (?)", version)
+        .execute(&mut *db)
+        .await
+        .map_err(|e| BadRequest(Some(e.to_string())))?;
+
+    Ok(())
+}
 
 #[put("/config", format = "application/json", data = "<settings>")]
 async fn write_configuration(
@@ -469,10 +467,7 @@ async fn write_configuration(
         .execute(&mut *db)
         .await;
     }
-
-    //on the UI side, make sure to not pass any distances if delay is manually specified
     let speakers = update_speaker_delays(&settings.selected_distance, &settings.speakers);
-    //meters/feet conversion will be calculated on client side
     for speaker in speakers.iter() {
         let _ = sqlx::query!(
             "INSERT INTO speakers_for_camilla (
