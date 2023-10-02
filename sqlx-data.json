@@ -234,42 +234,6 @@
     },
     "query": "INSERT INTO speakers_settings_for_ui (\n            version, \n            speaker, \n            crossover, \n            distance, \n            gain, \n            is_subwoofer\n        ) VALUES (?, ?, ?, ?, ?, ?)"
   },
-  "be34be5b3df86c0170bcb533179c1f11310328b31435b197d22c3bda29efeee6": {
-    "describe": {
-      "columns": [
-        {
-          "name": "speaker",
-          "ordinal": 0,
-          "type_info": "Text"
-        },
-        {
-          "name": "freq: i32",
-          "ordinal": 1,
-          "type_info": "Int64"
-        },
-        {
-          "name": "gain: f32",
-          "ordinal": 2,
-          "type_info": "Float"
-        },
-        {
-          "name": "q: f32",
-          "ordinal": 3,
-          "type_info": "Float"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false,
-        false
-      ],
-      "parameters": {
-        "Right": 1
-      }
-    },
-    "query": "SELECT \n        speaker, \n        freq as \"freq: i32\", \n        gain as \"gain: f32\", \n        q as \"q: f32\"\n        from filters where version=?"
-  },
   "d28b966c0905444faced26654f6b41ef8e78cc5cd872248ffd694fa6738f97e6": {
     "describe": {
       "columns": [],
@@ -280,7 +244,7 @@
     },
     "query": "DELETE FROM speakers_for_camilla WHERE version=?"
   },
-  "d48bf6d3a02fd0c8b28060a70246fd9425e816e3a20d14b02294498112f25bf9": {
+  "d3ed1bfc0037b8ff81f7e5844adf4d82a36c53b1b01f1482301c4cd26c9738d6": {
     "describe": {
       "columns": [
         {
@@ -296,7 +260,7 @@
         "Right": 1
       }
     },
-    "query": "SELECT \n        selected_distance as \"selected_distance: crate::processor::SelectedDistanceType\"\n        from versions where version=?"
+    "query": "SELECT \n            selected_distance as \"selected_distance: crate::processor::SelectedDistanceType\"\n            from versions where version=?"
   },
   "ffdea2de2bf5c13090e64ba69a275b19ade69a4138946e54219d0e30896545a9": {
     "describe": {

@@ -185,19 +185,25 @@ fn convert_processor_settings_to_camilla(
     }
 }
 
-async fn get_config_for_camilla_from_db(
+async fn get_selected_distance(
     db: &mut Connection<Settings>,
     version: i32,
-) -> Result<ProcessorSettingsForCamilla, sqlx::Error> {
+) -> Result<SelectedDistanceType, sqlx::Error> {
     let SelectedDistanceWrapper { selected_distance } = sqlx::query_as!(
         SelectedDistanceWrapper,
         r#"SELECT 
-        selected_distance as "selected_distance: crate::processor::SelectedDistanceType"
-        from versions where version=?"#,
+            selected_distance as "selected_distance: crate::processor::SelectedDistanceType"
+            from versions where version=?"#,
         version
     )
     .fetch_one(&mut **db)
     .await?;
+    Ok(selected_distance)
+}
+async fn get_filters(
+    db: &mut Connection<Settings>,
+    version: i32,
+) -> Result<Vec<Filter>, sqlx::Error> {
     let filters = sqlx::query_as!(
         Filter,
         r#"SELECT speaker, 
@@ -209,6 +215,12 @@ async fn get_config_for_camilla_from_db(
     )
     .fetch_all(&mut **db)
     .await?;
+    Ok(filters)
+}
+async fn get_speakers_for_camilla(
+    db: &mut Connection<Settings>,
+    version: i32,
+) -> Result<Vec<Speaker>, sqlx::Error> {
     let speakers = sqlx::query_as!(
         Speaker,
         r#"SELECT 
@@ -222,39 +234,12 @@ async fn get_config_for_camilla_from_db(
     )
     .fetch_all(&mut **db)
     .await?;
-    Ok(ProcessorSettingsForCamilla {
-        filters,
-        speakers,
-        selected_distance,
-    })
+    Ok(speakers)
 }
-
-async fn get_config_from_db(
+async fn get_speakers_for_ui(
     db: &mut Connection<Settings>,
     version: i32,
-) -> Result<ProcessorSettings, sqlx::Error> {
-    let SelectedDistanceWrapper { selected_distance } = sqlx::query_as!(
-        SelectedDistanceWrapper,
-        r#"SELECT 
-        selected_distance as "selected_distance: crate::processor::SelectedDistanceType"
-        from versions where version=?"#,
-        version
-    )
-    .fetch_one(&mut **db)
-    .await?;
-
-    let filters = sqlx::query_as!(
-        Filter,
-        r#"SELECT 
-        speaker, 
-        freq as "freq: i32", 
-        gain as "gain: f32", 
-        q as "q: f32"
-        from filters where version=?"#,
-        version
-    )
-    .fetch_all(&mut **db)
-    .await?;
+) -> Result<Vec<SpeakerForUI>, sqlx::Error> {
     let speakers = sqlx::query_as!(
         SpeakerForUI,
         r#"
@@ -269,6 +254,29 @@ async fn get_config_from_db(
     )
     .fetch_all(&mut **db)
     .await?;
+    Ok(speakers)
+}
+async fn get_config_for_camilla_from_db(
+    db: &mut Connection<Settings>,
+    version: i32,
+) -> Result<ProcessorSettingsForCamilla, sqlx::Error> {
+    let selected_distance = get_selected_distance(db, version).await?;
+    let filters = get_filters(db, version).await?;
+    let speakers = get_speakers_for_camilla(db, version).await?;
+    Ok(ProcessorSettingsForCamilla {
+        filters,
+        speakers,
+        selected_distance,
+    })
+}
+
+async fn get_config_from_db(
+    db: &mut Connection<Settings>,
+    version: i32,
+) -> Result<ProcessorSettings, sqlx::Error> {
+    let selected_distance = get_selected_distance(db, version).await?;
+    let filters = get_filters(db, version).await?;
+    let speakers = get_speakers_for_ui(db, version).await?;
     Ok(ProcessorSettings {
         filters,
         speakers,
