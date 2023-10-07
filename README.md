@@ -41,4 +41,3 @@ The computation for delays are relatively straightforward.  The longest distance
 # TODO
 
 * Add docstrings to the relevant rust functions
-* Add static hosting of transpiled javascript/html.

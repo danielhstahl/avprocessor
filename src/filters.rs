@@ -17,6 +17,8 @@ pub fn crossover_speaker_name(speaker_name: &str) -> String {
 pub fn crossover_subwoofer_name(speaker_name: &str) -> String {
     format!("crossover_subwoofer{}", speaker_name)
 }
+
+/// generates Biquad filters for crossovers for both speakers and subs
 pub fn create_crossover_filters(speakers: &[Speaker]) -> BTreeMap<String, SpeakerAdjust> {
     BTreeMap::from_iter(
         speakers
@@ -54,6 +56,7 @@ pub fn create_crossover_filters(speakers: &[Speaker]) -> BTreeMap<String, Speake
     )
 }
 
+/// generates PEQ filters
 pub fn create_output_filters(
     speakers: &[Speaker],
     peq_filters: &BTreeMap<&String, Vec<(usize, &Filter)>>,
@@ -122,7 +125,7 @@ pub fn compute_peq_filter<'a>(
 #[serde(crate = "rocket::serde")]
 enum FilterType {
     Delay,
-    Biquad, //both peaking and highpass are BIQUAD filters
+    Biquad,
     BiquadCombo,
     Gain,
 }

@@ -47,6 +47,7 @@ pub struct SpeakerCounts {
     output_subwoofers: usize,
     input_subwoofer_speakers: Vec<String>,
 }
+
 pub fn get_speaker_counts(speakers: &[Speaker]) -> SpeakerCounts {
     let output_subwoofers = speakers
         .iter()

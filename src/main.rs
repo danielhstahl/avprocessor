@@ -2,6 +2,7 @@
 extern crate rocket;
 use chrono::Utc;
 use rocket::fairing::{self, AdHoc};
+use rocket::fs::{relative, FileServer};
 use rocket::response::status::BadRequest;
 use rocket::serde::{json, json::Json, Serialize};
 use rocket::{Build, Rocket, State};
@@ -26,10 +27,12 @@ use processor::{
 
 #[derive(Database)]
 #[database("settings")]
+/// Wrapper for database configuration
 struct Settings(sqlx::SqlitePool);
 
 #[derive(Serialize)]
 #[serde(crate = "rocket::serde")]
+/// Represents a valid Camilla configuration, see https://github.com/HEnquist/camilladsp/tree/master/exampleconfigs for examples
 struct CamillaConfig {
     mixers: BTreeMap<String, Mixer>,
     filters: BTreeMap<String, SpeakerAdjust>,
@@ -38,6 +41,7 @@ struct CamillaConfig {
 
 #[derive(Serialize, sqlx::FromRow)]
 #[serde(crate = "rocket::serde", rename_all = "camelCase")]
+/// Used in the UI; represents versions of the configuration
 struct Version {
     version: i32,
     applied_version: bool,
@@ -45,28 +49,32 @@ struct Version {
 }
 
 #[derive(sqlx::FromRow)]
+/// Wrapper to extract version from sqlx macro
 struct ConfigVersion {
     version: i32,
 }
 
 #[derive(sqlx::FromRow)]
+/// Wrapper to extract distance from sqlx macro
 struct SelectedDistanceWrapper {
     selected_distance: SelectedDistanceType,
 }
 
 #[derive(Serialize)]
 #[serde(crate = "rocket::serde")]
+/// Wrapper for camilla configuration over websockets using JSON.  See https://github.com/HEnquist/camilladsp/blob/master/websocket.md#config-management
 struct SetConfig {
     #[serde(rename = "SetConfigJson")]
     set_config_json: String,
 }
 
-//this is used purely to store state and pass to mixer and filter creators
+/// this is used purely to store state and pass to mixer and filter creators
 struct ConfigurationMapping<'a> {
     peq_filters: BTreeMap<&'a String, Vec<(usize, &'a Filter)>>,
     speaker_counts: SpeakerCounts,
 }
 
+/// runs on every startup, idempotent table creation
 async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
     if let Some(db) = Settings::fetch(&rocket) {
         let _1 = sqlx::query(
@@ -130,6 +138,7 @@ async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
     }
 }
 
+/// settings stored in sqlite are converted to the appropriate camilla configuration
 fn convert_processor_settings_to_camilla(
     settings: &ProcessorSettingsForCamilla,
 ) -> Result<String, json::serde_json::Error> {
@@ -185,6 +194,7 @@ fn convert_processor_settings_to_camilla(
     }
 }
 
+/// reads selected distance type (MS, FEET, METERS) for the specific configration version
 async fn get_selected_distance(
     db: &mut Connection<Settings>,
     version: i32,
@@ -200,6 +210,8 @@ async fn get_selected_distance(
     .await?;
     Ok(selected_distance)
 }
+
+/// reads filters for the specific configration version
 async fn get_filters(
     db: &mut Connection<Settings>,
     version: i32,
@@ -217,6 +229,8 @@ async fn get_filters(
     .await?;
     Ok(filters)
 }
+
+/// reads speakers that map to camilla speakers for the specific configration version
 async fn get_speakers_for_camilla(
     db: &mut Connection<Settings>,
     version: i32,
@@ -236,6 +250,8 @@ async fn get_speakers_for_camilla(
     .await?;
     Ok(speakers)
 }
+
+/// reads speakers that map to the UI for the specific configration version
 async fn get_speakers_for_ui(
     db: &mut Connection<Settings>,
     version: i32,
@@ -256,6 +272,8 @@ async fn get_speakers_for_ui(
     .await?;
     Ok(speakers)
 }
+
+/// gets configuration for camilla from database
 async fn get_config_for_camilla_from_db(
     db: &mut Connection<Settings>,
     version: i32,
@@ -270,6 +288,7 @@ async fn get_config_for_camilla_from_db(
     })
 }
 
+/// gets configuration for UI from database
 async fn get_config_from_db(
     db: &mut Connection<Settings>,
     version: i32,
@@ -286,6 +305,10 @@ async fn get_config_from_db(
 
 const METERS_PER_MS: f32 = 0.3430;
 const FEET_PER_MS: f32 = 1.1164;
+
+/// given the speaker with the largest distance,
+/// the current speakers distance, and the speed of sound,
+/// gets the number of millisecond delay
 fn convert_distance_to_delay(
     largest_distance: f32,
     current_distance: f32,
@@ -293,6 +316,8 @@ fn convert_distance_to_delay(
 ) -> f32 {
     (largest_distance - current_distance) / distance_per_ms
 }
+
+/// apply delays to each speaker given the distance type (MS, METERS, FEET)
 fn update_speaker_delays(
     selected_distance: &SelectedDistanceType,
     speakers: &[SpeakerForUI],
@@ -395,6 +420,8 @@ async fn config_version(
 }
 
 #[post("/config/apply/<version>", format = "application/json")]
+/// Configurations can be saved without actually be implemented or applied to camilla.  
+/// This endpoint applies the selected version to camilla
 async fn apply_config_version(
     mut db: Connection<Settings>,
     version: i32,
@@ -429,6 +456,8 @@ async fn apply_config_version(
 }
 
 #[put("/config", format = "application/json", data = "<settings>")]
+/// Saves the configuration and auto-increments the version.
+/// Does NOT apply the configuration to Camilla.
 async fn write_configuration(
     mut db: Connection<Settings>,
     settings: Json<ProcessorSettings>,
@@ -536,6 +565,7 @@ fn rocket() -> _ {
     args.next(); //first item is the app name, skip it
     let camilla_dsp_url = args.next().unwrap_or("ws://127.0.0.1:1234".to_string());
     rocket::build()
+        .mount("/", FileServer::from(relative!("avprocessor-ui/build")))
         .manage(camilla_dsp_url)
         .attach(Settings::init())
         .attach(AdHoc::try_on_ignite("DB Migrations", run_migrations))
