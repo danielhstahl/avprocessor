@@ -1,4 +1,4 @@
-import { List, Space, Typography, InputNumber, Button, Row, Col } from 'antd';
+import { Space, Typography, InputNumber, Button, Row, Col, Divider } from 'antd';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import { FilterWithIndex } from '../state/filter'
 import { floatFormatter, intFormatter } from '../utils/inputParsers';
@@ -117,19 +117,26 @@ const PeqRecord = ({ filters, updateFilter, removeFilter, addFilter }: PeqProps)
     const results = constructVisualArray(filters)
     return <Row style={{ minHeight: 100 }}>
         <Col md={24} lg={13} >
-            <List
-                itemLayout="horizontal"
-                dataSource={filters}
-                renderItem={(filter: FilterWithIndex) => (
-                    <List.Item>
-                        <FreqAction filter={filter} updateFilter={updateFilter} />
-                        <GainAction filter={filter} updateFilter={updateFilter} />
-                        <QAction filter={filter} updateFilter={updateFilter} />
+            {filters.map(filter => {
+                return <Row align="middle">
+                    <Col xs={18} md={24}>
+                        <Row gutter={[12, 12]} style={{ marginBottom: 12 }} align="middle">
+                            <Col xs={24} md={9}><FreqAction filter={filter} updateFilter={updateFilter} /></Col>
+                            <Col xs={24} md={8}><GainAction filter={filter} updateFilter={updateFilter} /></Col>
+                            <Col xs={24} md={6}><QAction filter={filter} updateFilter={updateFilter} /></Col>
+                            <Col xs={0} md={1}><DeleteOutlined onClick={() => removeFilter(filter)} /></Col>
+                        </Row>
+                    </Col>
+                    <Col xs={6} md={0}>
                         <DeleteOutlined onClick={() => removeFilter(filter)} />
-                    </List.Item>
-                )}
-                footer={<Button icon={<PlusOutlined />} onClick={addFilter}>Add Filter</Button>}
-            />
+                    </Col>
+                    <Col xs={24} md={0}>
+                        <Divider />
+                    </Col>
+
+                </Row>
+            })}
+            <Button icon={<PlusOutlined />} onClick={addFilter}>Add Filter</Button>
         </Col>
         <Col xs={0} md={0} lg={11} style={{ paddingLeft: "10%" }}>
             <PeqChartChartJS labels={results.freq} values={results.freqResponse} />

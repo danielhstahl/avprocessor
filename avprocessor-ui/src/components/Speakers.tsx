@@ -4,7 +4,7 @@ import { Speaker } from '../state/speaker'
 import { DelayType } from '../state/delay';
 const { Text } = Typography
 
-
+const inputStyle = { width: "100%" }
 type PartialProps = {
     speaker: Speaker,
     updateSpeaker: (speaker: Speaker) => void
@@ -39,6 +39,7 @@ const DelayAction = ({ speaker, updateSpeaker, delayType }: SpeakerProps) => {
     return <Space direction="horizontal" size="middle" >
         <Text>{title}</Text>
         <InputNumber
+            style={inputStyle}
             value={speaker.distance}
             onChange={v => v !== null && updateSpeaker({ ...speaker, distance: v })}
             min={0}
@@ -53,6 +54,7 @@ const TrimAction = ({ speaker, updateSpeaker }: PartialProps) => {
     return <Space direction="horizontal" size="middle" >
         <Text>Trim:</Text>
         <InputNumber
+            style={inputStyle}
             value={speaker.gain}
             onChange={v => v !== null && updateSpeaker({ ...speaker, gain: v })}
             min={-10}
@@ -63,10 +65,10 @@ const TrimAction = ({ speaker, updateSpeaker }: PartialProps) => {
 }
 
 const SpeakerRecord = ({ speaker, updateSpeaker, delayType }: SpeakerProps) => {
-    return <Row style={{ minHeight: 100 }} justify="space-evenly">
-        <Col xs={8}>{!speaker.isSubwoofer ? <CrossoverAction speaker={speaker} updateSpeaker={updateSpeaker} /> : <div></div>}</Col>
-        <Col xs={8}><DelayAction speaker={speaker} updateSpeaker={updateSpeaker} delayType={delayType} /></Col>
-        <Col xs={8}><TrimAction speaker={speaker} updateSpeaker={updateSpeaker} /></Col>
+    return <Row gutter={[12, 12]} style={{ minHeight: 100 }} justify="space-evenly">
+        <Col xs={24} md={8}>{!speaker.isSubwoofer ? <CrossoverAction speaker={speaker} updateSpeaker={updateSpeaker} /> : <div></div>}</Col>
+        <Col xs={24} md={8}><DelayAction speaker={speaker} updateSpeaker={updateSpeaker} delayType={delayType} /></Col>
+        <Col xs={24} md={8}><TrimAction speaker={speaker} updateSpeaker={updateSpeaker} /></Col>
     </Row >
 }
 
