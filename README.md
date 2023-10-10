@@ -25,7 +25,13 @@ This creates the sqlx-data.json which allows the binary to be recompiled without
 
 # UI
 
-The UI is scaffolded from create-react-app and is written in Typescript.  To run, `cd avprocessor-ui` and `npm start`.
+The UI is scaffolded from create-react-app and is written in Typescript.  To run, `cd avprocessor-ui` and `npm start`.  Example screenshots:
+
+![Screenshot of a Speaker Page](./images/speaker.png)
+
+![Screenshot of a PEQ Page](./images/peq.png)
+
+![Screenshot of a Advanced Page](./images/advanced.png)
 
 # Workflow and architecture
 
