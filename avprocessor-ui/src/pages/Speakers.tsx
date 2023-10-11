@@ -110,7 +110,7 @@ const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationPro
         })
     }
     return <>
-        <Row style={{ paddingTop: 20 }}>
+        <Row style={{ paddingTop: 20 }} align="middle">
             <Col xs={6}>
                 <Text strong>Select Configuration Version</Text>
             </Col>
@@ -120,7 +120,7 @@ const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationPro
                 }))} style={{ width: '100%' }} />
             </Col>
         </Row>
-        <Row style={{ paddingTop: 20, paddingBottom: 20 }}>
+        <Row style={{ paddingTop: 20, paddingBottom: 20 }} align="middle">
             <Col xs={6}>
                 <Text strong>Select Speaker Layout</Text>
             </Col>
