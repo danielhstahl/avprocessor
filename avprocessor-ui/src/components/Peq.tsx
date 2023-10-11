@@ -116,7 +116,7 @@ export type PeqProps = {
 const PeqRecord = ({ filters, updateFilter, removeFilter, addFilter }: PeqProps) => {
     const results = constructVisualArray(filters)
     return <Row style={{ minHeight: 100 }}>
-        <Col md={24} lg={13} >
+        <Col md={24} lg={15} >
             {filters.map(filter => {
                 return <Row align="middle">
                     <Col xs={18} md={24}>
@@ -138,7 +138,7 @@ const PeqRecord = ({ filters, updateFilter, removeFilter, addFilter }: PeqProps)
             })}
             <Button icon={<PlusOutlined />} onClick={addFilter}>Add Filter</Button>
         </Col>
-        <Col xs={0} md={0} lg={11} style={{ paddingLeft: "10%" }}>
+        <Col xs={0} md={0} lg={9} style={{ paddingLeft: "10%" }}>
             <PeqChartChartJS labels={results.freq} values={results.freqResponse} />
         </Col>
     </Row>
