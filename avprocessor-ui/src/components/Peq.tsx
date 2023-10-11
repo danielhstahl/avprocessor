@@ -1,10 +1,11 @@
-import { Space, Typography, InputNumber, Button, Row, Col, Divider } from 'antd';
+import { Typography, InputNumber, Button, Row, Col, Divider } from 'antd';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import { FilterWithIndex } from '../state/filter'
 import { floatFormatter, intFormatter } from '../utils/inputParsers';
 import { constructVisualArray } from '../utils/peq'
 import { Line } from 'react-chartjs-2';
 import { ChartOptions } from "chart.js"
+import { inputStyle, textStyle } from "./styles"
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -49,44 +50,64 @@ type ActionProps = {
     updateFilter: (filter: FilterWithIndex) => void,
 }
 
+
+
 const FreqAction = ({ filter, updateFilter }: ActionProps) => {
-    return <Space direction="horizontal" size="middle" >
-        <Text>Frequency:</Text>
-        <InputNumber
-            value={filter.freq}
-            onChange={v => v !== null && updateFilter({ ...filter, freq: v })}
-            min={0}
-            max={20000}
-            {...intFormatter("hz")}
-        />
-    </Space>
+    return <Row align="middle" justify="center">
+        <Col xs={0} md={12}>
+            <Text style={textStyle} ellipsis={true}>Frequency:</Text>
+        </Col>
+        <Col xs={12} md={0}>
+            <Text style={textStyle} ellipsis={true}>Freq:</Text>
+        </Col>
+        <Col xs={12}>
+            <InputNumber
+                style={inputStyle}
+                value={filter.freq}
+                onChange={v => v !== null && updateFilter({ ...filter, freq: v })}
+                min={0}
+                max={20000}
+                {...intFormatter("hz")}
+            />
+        </Col>
+    </Row>
 }
 
 const GainAction = ({ filter, updateFilter }: ActionProps) => {
-    return <Space direction="horizontal" size="middle" >
-        <Text>Gain:</Text>
-        <InputNumber
-            value={filter.gain}
-            onChange={v => v !== null && updateFilter({ ...filter, gain: v })}
-            step="0.5"
-            min={-10}
-            max={10}
-            {...floatFormatter("db")}
-        />
-    </Space>
+    return <Row align="middle" justify="center">
+        <Col xs={12}>
+            <Text style={textStyle} ellipsis={true}>Gain:</Text>
+        </Col>
+        <Col xs={12}>
+            <InputNumber
+                style={inputStyle}
+                value={filter.gain}
+                onChange={v => v !== null && updateFilter({ ...filter, gain: v })}
+                step="0.5"
+                min={-10}
+                max={10}
+                {...floatFormatter("db")}
+            />
+        </Col>
+    </Row>
 }
 
 const QAction = ({ filter, updateFilter }: ActionProps) => {
-    return <Space direction="horizontal" size="middle" >
-        <Text>Q:</Text>
-        <InputNumber
-            value={filter.q}
-            step="0.2"
-            onChange={v => v !== null && updateFilter({ ...filter, q: v })}
-            min={0}
-            max={10}
-        />
-    </Space>
+    return <Row align="middle" justify="center">
+        <Col xs={12}>
+            <Text style={textStyle} ellipsis={true}>Q:</Text>
+        </Col>
+        <Col xs={12}>
+            <InputNumber
+                style={inputStyle}
+                value={filter.q}
+                step="0.2"
+                onChange={v => v !== null && updateFilter({ ...filter, q: v })}
+                min={0}
+                max={10}
+            />
+        </Col>
+    </Row>
 }
 
 
@@ -118,7 +139,7 @@ const PeqRecord = ({ filters, updateFilter, removeFilter, addFilter }: PeqProps)
     return <Row style={{ minHeight: 100 }}>
         <Col md={24} lg={15} >
             {filters.map(filter => {
-                return <Row align="middle">
+                return <Row align="middle" justify="center">
                     <Col xs={18} md={24}>
                         <Row gutter={[12, 12]} style={{ marginBottom: 12 }} align="middle">
                             <Col xs={24} md={9}><FreqAction filter={filter} updateFilter={updateFilter} /></Col>
@@ -127,7 +148,7 @@ const PeqRecord = ({ filters, updateFilter, removeFilter, addFilter }: PeqProps)
                             <Col xs={0} md={1}><DeleteOutlined onClick={() => removeFilter(filter)} /></Col>
                         </Row>
                     </Col>
-                    <Col xs={6} md={0}>
+                    <Col xs={6} md={0} style={{ textAlign: "center" }}>
                         <DeleteOutlined onClick={() => removeFilter(filter)} />
                     </Col>
                     <Col xs={24} md={0}>
