@@ -2,7 +2,7 @@ import { Typography, InputNumber, Row, Col, Switch } from 'antd';
 import { floatFormatter, intFormatter } from '../utils/inputParsers';
 import { Speaker } from '../state/speaker'
 import { DelayType } from '../state/delay'
-import { inputStyle, textStyle } from "./styles"
+import { inputStyle, textStyle, gutterStyle } from "./styles"
 const { Text } = Typography
 
 type PartialProps = {
@@ -40,7 +40,7 @@ const DelayAction = ({ speaker, updateSpeaker, delayType }: SpeakerProps) => {
     const title = delayType === DelayType.MS ? "Delay:" : "Distance:"
     return <Row align="middle" justify="center">
         <Col xs={9}>
-            <Text style={{ float: "right", paddingRight: 12 }} ellipsis={true}>{title}</Text>
+            <Text style={textStyle} ellipsis={true}>{title}</Text>
         </Col>
         <Col xs={15}>
             <InputNumber
@@ -75,7 +75,7 @@ const TrimAction = ({ speaker, updateSpeaker }: PartialProps) => {
 }
 
 const SpeakerRecord = ({ speaker, updateSpeaker, delayType }: SpeakerProps) => {
-    return <Row gutter={[12, 12]} style={{ minHeight: 100 }} justify="space-evenly">
+    return <Row gutter={gutterStyle} style={{ minHeight: 100 }} justify="space-evenly">
         <Col xs={24} lg={8}>{!speaker.isSubwoofer ? <CrossoverAction speaker={speaker} updateSpeaker={updateSpeaker} /> : <div></div>}</Col>
         <Col xs={24} lg={8}><DelayAction speaker={speaker} updateSpeaker={updateSpeaker} delayType={delayType} /></Col>
         <Col xs={24} lg={8}><TrimAction speaker={speaker} updateSpeaker={updateSpeaker} /></Col>
