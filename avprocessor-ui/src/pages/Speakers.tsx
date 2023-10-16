@@ -8,7 +8,7 @@ import PeqRecord, { PeqProps } from '../components/Peq'
 import { useVersion, VersionAction } from '../state/version'
 import { applyConfig, saveConfig, getConfiguration, ConfigPayload } from '../services/configuration';
 import { DelayAction, useDelay } from '../state/delay';
-
+import { inputStyle } from '../components/styles'
 const { Text } = Typography
 
 const tabList = [
@@ -33,7 +33,7 @@ const SpeakerCard = ({
 }: SpeakerProps & PeqProps) => {
     const [activeKey, setActiveKey] = useState(tabList[0].key)
     return <Card
-        style={{ width: '100%' }}
+        style={inputStyle}
         title={speaker.speaker}
         tabList={tabList}
         activeTabKey={activeKey}
@@ -117,7 +117,7 @@ const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationPro
             <Col xs={18}>
                 <Select value={selectedVersion} onChange={onSelectVersion} options={versions.map(({ version, versionDate }) => ({
                     value: version, label: `${version} (${versionDate})`
-                }))} style={{ width: '100%' }} />
+                }))} style={inputStyle} />
             </Col>
         </Row>
         <Row style={{ paddingTop: 20, paddingBottom: 20 }} align="middle">
@@ -133,7 +133,7 @@ const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationPro
                         filterDispatch({ type: FilterAction.INIT, value: v })
                     }}
                     options={SPEAKER_OPTIONS.map(({ label }) => ({ value: label, label }))}
-                    style={{ width: '100%' }}
+                    style={inputStyle}
                 />
             </Col>
         </Row>

@@ -5,7 +5,7 @@ import { floatFormatter, intFormatter } from '../utils/inputParsers';
 import { constructVisualArray } from '../utils/peq'
 import { Line } from 'react-chartjs-2';
 import { ChartOptions } from "chart.js"
-import { inputStyle, textStyle } from "./styles"
+import { inputStyle, textStyle, gutterStyle } from "./styles"
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -141,7 +141,7 @@ const PeqRecord = ({ filters, updateFilter, removeFilter, addFilter }: PeqProps)
             {filters.map(filter => {
                 return <Row align="middle" justify="center">
                     <Col xs={18} md={24}>
-                        <Row gutter={[12, 12]} style={{ marginBottom: 12 }} align="middle">
+                        <Row gutter={gutterStyle} style={{ marginBottom: 12 }} align="middle">
                             <Col xs={24} md={9}><FreqAction filter={filter} updateFilter={updateFilter} /></Col>
                             <Col xs={24} md={8}><GainAction filter={filter} updateFilter={updateFilter} /></Col>
                             <Col xs={24} md={6}><QAction filter={filter} updateFilter={updateFilter} /></Col>
