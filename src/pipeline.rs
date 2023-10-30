@@ -1,6 +1,6 @@
 use crate::filters::{
     crossover_speaker_name, crossover_subwoofer_name, delay_filter_name, gain_filter_name,
-    peq_filter_name,
+    peq_filter_name, volume_filter_name,
 };
 use crate::processor::{Filter, Speaker};
 use rocket::serde::Serialize;
@@ -24,6 +24,7 @@ pub fn create_per_speaker_pipeline(
                     .map(|(index, _)| peq_filter_name(&s.speaker, *index))
                     .chain(std::iter::once(delay_filter_name(&s.speaker)))
                     .chain(std::iter::once(gain_filter_name(&s.speaker)))
+                    .chain(std::iter::once(volume_filter_name()))
                     .collect(),
             })
         })
@@ -180,7 +181,7 @@ mod tests {
         assert!(result.len() == 4);
         match &result[0] {
             Pipeline::Filter(f) => {
-                assert!(f.names.len() == 4); //2 peq, 1 gain, 1 delay
+                assert!(f.names.len() == 5); //2 peq, 1 gain, 1 delay, 1 volume
             }
             Pipeline::Mixer(_) => {
                 assert!(false); //should not get here
@@ -188,7 +189,7 @@ mod tests {
         }
         match &result[1] {
             Pipeline::Filter(f) => {
-                assert!(f.names.len() == 2); //1 gain, 1 delay
+                assert!(f.names.len() == 3); //1 gain, 1 delay, 1 volume
             }
             Pipeline::Mixer(_) => {
                 assert!(false); //should not get here
@@ -196,7 +197,7 @@ mod tests {
         }
         match &result[2] {
             Pipeline::Filter(f) => {
-                assert!(f.names.len() == 3); //1peq, 1 gain, 1 delay
+                assert!(f.names.len() == 4); //1peq, 1 gain, 1 delay, 1 volume
             }
             Pipeline::Mixer(_) => {
                 assert!(false); //should not get here
@@ -204,7 +205,7 @@ mod tests {
         }
         match &result[3] {
             Pipeline::Filter(f) => {
-                assert!(f.names.len() == 2); //1 gain, 1 delay
+                assert!(f.names.len() == 3); //1 gain, 1 delay, 1 volume
             }
             Pipeline::Mixer(_) => {
                 assert!(false); //should not get here
