@@ -12,6 +12,7 @@ import { SpeakerProvider } from './state/speaker'
 import { FilterProvider } from './state/filter'
 import { VersionProvider } from './state/version'
 import { DelayProvider } from './state/delay'
+import { DeviceProvider } from './state/device';
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement
 );
@@ -32,9 +33,11 @@ root.render(
     <SpeakerProvider>
       <FilterProvider>
         <DelayProvider>
-          <VersionProvider>
-            <RouterProvider router={router} />
-          </VersionProvider>
+          <DeviceProvider>
+            <VersionProvider>
+              <RouterProvider router={router} />
+            </VersionProvider>
+          </DeviceProvider>
         </DelayProvider>
       </FilterProvider>
     </SpeakerProvider>

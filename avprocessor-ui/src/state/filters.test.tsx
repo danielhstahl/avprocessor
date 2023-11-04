@@ -51,7 +51,7 @@ describe("setFiltersPure", () => {
 
 describe("setfilterBase", () => {
 
-    it("correctls sets filters", async () => {
+    it("correctly sets filters", async () => {
         const filters = setFiltersPure([
             {
                 speaker: "Left",
@@ -83,13 +83,6 @@ describe("setfilterBase", () => {
                 index: 1
             },
             {
-                speaker: "Center",
-                q: 0.0,
-                freq: 50,
-                gain: 0,
-                index: 1
-            },
-            {
                 speaker: "Right",
                 q: 0.1,
                 freq: 800,
@@ -102,20 +95,6 @@ describe("setfilterBase", () => {
                 freq: 800,
                 gain: 3,
                 index: 2
-            },
-            {
-                speaker: "Subwoofer 1",
-                q: 0.0,
-                freq: 50,
-                gain: 0,
-                index: 1
-            },
-            {
-                speaker: "Subwoofer 2",
-                q: 0.0,
-                freq: 50,
-                gain: 0,
-                index: 1
             }
         ])
     })
@@ -207,43 +186,7 @@ describe("filterReducer", () => {
         }, {
             type: FilterAction.INIT, value: "3.2"
         })
-        expect(results.filters).toEqual([
-            {
-                speaker: "Left",
-                q: 0.0,
-                freq: 50,
-                gain: 0,
-                index: 1
-            },
-            {
-                speaker: "Center",
-                q: 0.0,
-                freq: 50,
-                gain: 0,
-                index: 1
-            },
-            {
-                speaker: "Right",
-                q: 0.0,
-                freq: 50,
-                gain: 0,
-                index: 1
-            },
-            {
-                speaker: "Subwoofer 1",
-                q: 0.0,
-                freq: 50,
-                gain: 0,
-                index: 1
-            },
-            {
-                speaker: "Subwoofer 2",
-                q: 0.0,
-                freq: 50,
-                gain: 0,
-                index: 1
-            }
-        ])
+        expect(results.filters).toEqual([])
     })
     it("correctly returns existing when not speakerConfiguration", () => {
         const results = filterReducer({

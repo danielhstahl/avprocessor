@@ -14,9 +14,9 @@ pub fn combine_mixer_name() -> String {
 #[serde(crate = "rocket::serde")]
 pub(crate) struct ChannelCount {
     #[serde(rename = "in")]
-    num_in_channel: usize,
+    pub(crate) num_in_channel: usize,
     #[serde(rename = "out")]
-    num_out_channel: usize,
+    pub(crate) num_out_channel: usize,
 }
 
 #[derive(Serialize)]
@@ -73,6 +73,14 @@ pub fn get_speaker_counts(speakers: &[Speaker]) -> SpeakerCounts {
     }
 }
 
+pub fn input_speaker_count(speaker_counts: &SpeakerCounts) -> usize {
+    speaker_counts.speakers_exclude_sub + speaker_counts.input_subwoofers
+}
+
+pub fn output_speaker_count_no_mixer(speaker_counts: &SpeakerCounts) -> usize {
+    speaker_counts.speakers_exclude_sub + speaker_counts.output_subwoofers
+}
+
 pub fn split_inputs<'a>(
     speakers: &'a [Speaker],
     speaker_counts: &'a SpeakerCounts,
@@ -83,11 +91,12 @@ pub fn split_inputs<'a>(
 )> {
     let SpeakerCounts {
         speakers_exclude_sub,
-        input_subwoofers,
         output_subwoofers,
         input_subwoofer_speakers,
+        ..
     } = speaker_counts;
 
+    // what if input has a subwoofer?  Don't I need to mix sub back to speakers?
     if *output_subwoofers > 0 {
         let mut input_channel_mapping: BTreeMap<&String, (bool, usize, Vec<usize>)> =
             BTreeMap::new();
@@ -140,7 +149,7 @@ pub fn split_inputs<'a>(
         }
 
         let channels = ChannelCount {
-            num_in_channel: speakers_exclude_sub + input_subwoofers,
+            num_in_channel: input_speaker_count(&speaker_counts),
             num_out_channel: track_index,
         };
 

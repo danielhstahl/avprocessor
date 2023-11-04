@@ -4,6 +4,7 @@ pub struct ProcessorSettingsForCamilla {
     pub filters: Vec<Filter>,
     pub speakers: Vec<Speaker>,
     pub selected_distance: SelectedDistanceType,
+    pub device: DeviceType,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -12,6 +13,7 @@ pub struct ProcessorSettings {
     pub filters: Vec<Filter>,
     pub speakers: Vec<SpeakerForUI>,
     pub selected_distance: SelectedDistanceType,
+    pub device: DeviceType,
 }
 
 #[derive(sqlx::FromRow)]
@@ -29,6 +31,14 @@ pub enum SelectedDistanceType {
     MS,
     FEET,
     METERS,
+}
+
+#[derive(Serialize, Deserialize, sqlx::Type)]
+#[serde(crate = "rocket::serde", rename_all = "lowercase")]
+pub enum DeviceType {
+    OktoDac8,
+    ToppingDm7,
+    MotuMk5,
 }
 
 #[derive(Serialize, Deserialize, sqlx::FromRow)]

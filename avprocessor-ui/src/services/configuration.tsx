@@ -2,8 +2,14 @@ import { Speaker } from '../state/speaker'
 import { Filter } from '../state/filter'
 import { DelayType } from '../state/delay'
 import { Version } from '../state/version'
+import { DeviceType } from '../state/device'
 
-export type ConfigPayload = { speakers: Speaker[], filters: Filter[], selectedDistance: DelayType }
+export type ConfigPayload = {
+    speakers: Speaker[],
+    filters: Filter[],
+    selectedDistance: DelayType,
+    device: DeviceType
+}
 
 export function getConfiguration(version: number): Promise<ConfigPayload> {
     return fetch(`/config/${version}`, {
