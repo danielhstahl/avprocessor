@@ -32,25 +32,6 @@ pub struct Devices {
 //in the future, select a device
 impl Devices {
     // will input channels be consistent??  will I always get 8 channels of PCM over HDMI even if its stereo?
-    /*pub fn init(input_channels: usize, output_channels: usize) -> Self {
-        Self {
-            samplerate: "$samplerate$".to_string(),
-            chunksize: 1024,
-            queuelimit: 1,
-            capture: CaptureConfig {
-                device_type: "File".to_string(),
-                channels: input_channels,
-                filename: "/dev/stdin".to_string(),
-                format: "$format$".to_string(),
-            },
-            playback: PlaybackConfig {
-                device_type: "Alsa".to_string(),
-                channels: output_channels,
-                device: "hw:1,0".to_string(),
-                format: "S16LE".to_string(),
-            },
-        }
-    }*/
     pub fn okto_dac8(input_channels: usize, output_channels: usize) -> Self {
         Self {
             samplerate: "$samplerate$".to_string(),
