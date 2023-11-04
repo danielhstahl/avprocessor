@@ -9,6 +9,7 @@ import { useVersion, VersionAction } from '../state/version'
 import { applyConfig, saveConfig, getConfiguration, ConfigPayload } from '../services/configuration';
 import { DelayAction, useDelay } from '../state/delay';
 import { inputStyle } from '../components/styles'
+import { useDevice } from '../state/device';
 const { Text } = Typography
 
 const tabList = [
@@ -68,6 +69,7 @@ const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationPro
     const { state: { filters }, dispatch: filterDispatch } = useFilter()
     const { state: { versions, selectedVersion }, dispatch: versionDispatch } = useVersion()
     const { state: { delayType }, dispatch: delayDispatch } = useDelay()
+    const { state: { deviceType } } = useDevice()
 
     const speakerFilters = perSpeakerFilters(filters)
 
@@ -91,7 +93,7 @@ const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationPro
                 .then(applySuccess).catch(saveFailure)
         }
     }
-    const onSave = () => saveConfig({ speakers, filters, selectedDistance: delayType })
+    const onSave = () => saveConfig({ speakers, filters, selectedDistance: delayType, device: deviceType })
         .then(value => {
             versionDispatch({ type: VersionAction.ADD, value })
             versionDispatch({ type: VersionAction.SELECT, value: value.version })

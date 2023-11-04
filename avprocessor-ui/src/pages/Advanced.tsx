@@ -4,28 +4,37 @@ import React from 'react';
 import { Version, useVersion, VersionAction } from '../state/version'
 import { deleteConfig } from '../services/configuration';
 import { DelayAction, useDelay, DelayType } from '../state/delay';
+import { DeviceAction, useDevice, DeviceType } from '../state/device';
 const { Text, Title } = Typography
 
-//add clear database
 const AdvancedComponent: React.FC = () => {
     const { state: { versions }, dispatch: versionDispatch } = useVersion()
     const { state: { delayType }, dispatch: delayTypeDispatch } = useDelay()
+    const { state: { deviceType }, dispatch: deviceTypeDispatch } = useDevice()
     const [messageApi, contextHolder] = message.useMessage()
 
-    const saveSuccess = () => {
+    const deleteSuccess = () => {
         messageApi.success("Configuration Deleted")
     }
-    const saveFailure = () => {
+    const deleteFailure = () => {
         messageApi.error("Something went wrong!")
     }
 
     const onRemove = (version: number) => deleteConfig(version)
         .then(() => versionDispatch({ type: VersionAction.REMOVE, value: version }))
-        .then(saveSuccess)
-        .catch(saveFailure)
+        .then(deleteSuccess)
+        .catch(deleteFailure)
     return <>
         {contextHolder}
         <Row>
+            <Col xs={24}>
+                <Title level={4}>Select Device</Title>
+                <Select
+                    value={deviceType}
+                    onChange={v => deviceTypeDispatch({ type: DeviceAction.UPDATE, value: v })}
+                    options={Object.values(DeviceType).map(v => ({ value: v, label: v }))}
+                    style={{ width: '100%' }} />
+            </Col>
             <Col xs={24} md={12}>
                 <Title level={4}>Configuration Versions</Title>
                 <List
