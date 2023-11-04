@@ -9,7 +9,7 @@ import { useVersion, VersionAction } from '../state/version'
 import { applyConfig, saveConfig, getConfiguration, ConfigPayload } from '../services/configuration';
 import { DelayAction, useDelay } from '../state/delay';
 import { inputStyle } from '../components/styles'
-import { useDevice } from '../state/device';
+import { DeviceAction, useDevice } from '../state/device';
 const { Text } = Typography
 
 const tabList = [
@@ -69,7 +69,7 @@ const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationPro
     const { state: { filters }, dispatch: filterDispatch } = useFilter()
     const { state: { versions, selectedVersion }, dispatch: versionDispatch } = useVersion()
     const { state: { delayType }, dispatch: delayDispatch } = useDelay()
-    const { state: { deviceType } } = useDevice()
+    const { state: { deviceType }, dispatch: deviceDispatch } = useDevice()
 
     const speakerFilters = perSpeakerFilters(filters)
 
@@ -103,11 +103,12 @@ const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationPro
 
     const onSelectVersion = (version: number) => {
         versionDispatch({ type: VersionAction.SELECT, value: version })
-        getConfigurationProp(version).then(({ filters, speakers, selectedDistance }) => {
+        getConfigurationProp(version).then(({ filters, speakers, selectedDistance, device }) => {
             if (speakers && speakers.length > 0) {
                 speakerDispatch({ type: SpeakerAction.SET, value: speakers })
                 filterDispatch({ type: FilterAction.SET, value: filters })
                 delayDispatch({ type: DelayAction.UPDATE, value: selectedDistance })
+                deviceDispatch({ type: DeviceAction.UPDATE, value: device })
             }
         })
     }

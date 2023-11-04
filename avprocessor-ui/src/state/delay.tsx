@@ -34,7 +34,6 @@ const DelayContext = createContext({ state: initialState, dispatch: (_: Action) 
 
 export const DelayProvider = ({ children }: PropsWithChildren) => {
     const [state, dispatch] = useReducer(delayReducer, initialState);
-
     return (
         <DelayContext.Provider value={{ state, dispatch }}>
             {children}

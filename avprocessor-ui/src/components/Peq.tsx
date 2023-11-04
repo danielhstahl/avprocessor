@@ -137,7 +137,7 @@ export type PeqProps = {
 const PeqRecord = ({ filters, updateFilter, removeFilter, addFilter }: PeqProps) => {
     const results = constructVisualArray(filters)
     return <Row style={{ minHeight: 100 }}>
-        <Col md={24} lg={15} >
+        <Col md={24} lg={15}>
             {filters.map(filter => {
                 return <Row align="middle" justify="center">
                     <Col xs={18} md={24}>

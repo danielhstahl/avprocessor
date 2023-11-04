@@ -11,6 +11,7 @@ import { Version, VersionAction, useVersion } from './state/version'
 import { getVersions } from './services/versions'
 import { ConfigPayload, getConfiguration } from './services/configuration'
 import { DelayAction, useDelay } from './state/delay';
+import { DeviceAction, useDevice } from './state/device';
 const { Header, Footer, Content } = Layout;
 
 interface VersionConfigurationPayload extends ConfigPayload {
@@ -46,11 +47,12 @@ export const MenuItems = [
 const App: React.FC = () => {
   const navigate = useNavigate()
   const location = useLocation()
-  const { versions: fetchedVersions, speakers, filters, appliedVersion, selectedDistance } = useRouteLoaderData(ROOT_ID) as VersionConfigurationPayload;
+  const { versions: fetchedVersions, speakers, filters, appliedVersion, selectedDistance, device } = useRouteLoaderData(ROOT_ID) as VersionConfigurationPayload;
   const { state: { speakerConfiguration }, dispatch: speakerDispatch } = useSpeaker()
   const { dispatch: versionDispatch } = useVersion()
   const { dispatch: filterDispatch } = useFilter()
   const { dispatch: delayDispatch } = useDelay()
+  const { dispatch: deviceDispatch } = useDevice()
 
   useEffect(() => {
     versionDispatch({ type: VersionAction.INIT, value: fetchedVersions })
@@ -64,8 +66,17 @@ const App: React.FC = () => {
   }, [appliedVersion, versionDispatch]) //only called once on load
 
   useEffect(() => {
-    delayDispatch({ type: DelayAction.UPDATE, value: selectedDistance })
+    selectedDistance && delayDispatch({
+      type: DelayAction.UPDATE, value: selectedDistance
+    })
   }, [selectedDistance, delayDispatch])
+
+  useEffect(() => {
+    device && deviceDispatch({
+      type: DeviceAction.UPDATE,
+      value: device
+    })
+  }, [device, deviceDispatch])
 
 
   useEffect(() => {
