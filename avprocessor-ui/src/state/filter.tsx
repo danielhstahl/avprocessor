@@ -26,7 +26,6 @@ export enum FilterAction {
     SET,
 }
 
-
 interface ActionInterface {
     type: FilterAction;
 }
@@ -38,6 +37,7 @@ interface FilterActionInterface extends ActionInterface {
 interface ConfigurationActionInterface extends ActionInterface {
     value: string;
 }
+
 interface FiltersActionInterface extends ActionInterface {
     value: Filter[];
 }
@@ -49,15 +49,13 @@ const FilterContext = createContext({
     dispatch: (_: Action) => { }
 })
 
-const getDefaultSettings: (speaker: string, i: number) => FilterWithIndex = (speaker: string, index: number) => {
-    return {
-        speaker,
-        freq: index * 50,
-        gain: 0,
-        q: 0,
-        index
-    }
-}
+const getDefaultSettings: (speaker: string, i: number) => FilterWithIndex = (speaker: string, index: number) => ({
+    speaker,
+    freq: index * 50,
+    gain: 0,
+    q: 0,
+    index
+})
 
 type SpeakerFilter = {
     filters: FilterWithIndex[],
@@ -85,7 +83,7 @@ export const setFilterBase = (speakerConfiguration: string, current_filters: Fil
     const baseSpeakers = SPEAKER_OPTIONS.find(s => s.label === speakerConfiguration)
     return baseSpeakers ? baseSpeakers.speakers.reduce<FilterWithIndex[]>((filters, baseSpeaker) => {
         const existingFilters = current_filters.filter(s => s.speaker === baseSpeaker.speaker)
-        return existingFilters.length > 0 ? [...filters, ...existingFilters] : [...filters, getDefaultSettings(baseSpeaker.speaker, INDEX_START)]
+        return existingFilters.length > 0 ? [...filters, ...existingFilters] : filters
     }, []) : undefined
 }
 
@@ -123,7 +121,6 @@ export function filterReducer(state: State, action: Action): State {
 
 export const FilterProvider = ({ children }: PropsWithChildren) => {
     const [state, dispatch] = useReducer(filterReducer, initialState);
-
     return (
         <FilterContext.Provider value={{ state, dispatch }}>
             {children}

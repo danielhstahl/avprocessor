@@ -148,7 +148,7 @@ const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationPro
                 delayType={delayType}
                 speaker={speaker}
                 updateSpeaker={(speaker: Speaker) => speakerDispatch({ type: SpeakerAction.UPDATE, value: speaker })}
-                filters={speakerFilters[speaker.speaker]}
+                filters={speakerFilters[speaker.speaker] || []}
                 updateFilter={(filter: FilterWithIndex) => filterDispatch({ type: FilterAction.UPDATE, value: filter })}
                 addFilter={() => filterDispatch({ type: FilterAction.ADD, value: speaker.speaker })}
                 removeFilter={(filter: FilterWithIndex) => filterDispatch({ type: FilterAction.REMOVE, value: filter })}

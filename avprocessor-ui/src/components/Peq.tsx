@@ -139,7 +139,7 @@ const PeqRecord = ({ filters, updateFilter, removeFilter, addFilter }: PeqProps)
     return <Row style={{ minHeight: 100 }}>
         <Col md={24} lg={15}>
             {filters.map(filter => {
-                return <Row align="middle" justify="center">
+                return <Row key={filter.index} align="middle" justify="center">
                     <Col xs={18} md={24}>
                         <Row gutter={gutterStyle} style={{ marginBottom: 12 }} align="middle">
                             <Col xs={24} md={9}><FreqAction filter={filter} updateFilter={updateFilter} /></Col>
