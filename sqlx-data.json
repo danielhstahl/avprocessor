@@ -102,6 +102,48 @@
     },
     "query": "DELETE FROM versions WHERE version=?"
   },
+  "3aa8bf755a5db9f453b5e1e01529c64b398aacd44d51d1471aec38de84959ec2": {
+    "describe": {
+      "columns": [
+        {
+          "name": "version: i32",
+          "ordinal": 0,
+          "type_info": "Int64"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Right": 3
+      }
+    },
+    "query": "INSERT INTO versions (\n            version_date, selected_distance, device\n        ) VALUES (?, ?, ?) RETURNING version as \"version: i32\""
+  },
+  "547589b8a89c32a27407826aa823843019ca4c7784dc80101dd9cf89d5a8be0b": {
+    "describe": {
+      "columns": [
+        {
+          "name": "selected_distance: crate::processor::SelectedDistanceType",
+          "ordinal": 0,
+          "type_info": "Text"
+        },
+        {
+          "name": "device: crate::processor::DeviceType",
+          "ordinal": 1,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false,
+        false
+      ],
+      "parameters": {
+        "Right": 1
+      }
+    },
+    "query": "SELECT \n            selected_distance as \"selected_distance: crate::processor::SelectedDistanceType\",\n            device as \"device: crate::processor::DeviceType\"\n            from versions where version=?"
+  },
   "588505c0415642ab96ee40f645d0d5758be39f8acd1d9d1a4b9d9fe86afd6ddf": {
     "describe": {
       "columns": [],
@@ -154,7 +196,7 @@
         {
           "name": "version!: i32",
           "ordinal": 0,
-          "type_info": "Int"
+          "type_info": "Int64"
         }
       ],
       "nullable": [
@@ -185,24 +227,6 @@
       }
     },
     "query": "INSERT INTO applied_version (version) VALUES (?)"
-  },
-  "84ef8d04723f6ac920f16de8e3028246c37c05cfd0b398baa6bf14a844113163": {
-    "describe": {
-      "columns": [
-        {
-          "name": "version: i32",
-          "ordinal": 0,
-          "type_info": "Int64"
-        }
-      ],
-      "nullable": [
-        false
-      ],
-      "parameters": {
-        "Right": 2
-      }
-    },
-    "query": "INSERT INTO versions (\n            version_date, selected_distance\n        ) VALUES (?, ?) RETURNING version as \"version: i32\""
   },
   "880b2b8a39443621b044ddb5f7a22f5fbe5b2abde3e628f001d3b82c88e806bb": {
     "describe": {
@@ -243,24 +267,6 @@
       }
     },
     "query": "DELETE FROM speakers_for_camilla WHERE version=?"
-  },
-  "d3ed1bfc0037b8ff81f7e5844adf4d82a36c53b1b01f1482301c4cd26c9738d6": {
-    "describe": {
-      "columns": [
-        {
-          "name": "selected_distance: crate::processor::SelectedDistanceType",
-          "ordinal": 0,
-          "type_info": "Text"
-        }
-      ],
-      "nullable": [
-        false
-      ],
-      "parameters": {
-        "Right": 1
-      }
-    },
-    "query": "SELECT \n            selected_distance as \"selected_distance: crate::processor::SelectedDistanceType\"\n            from versions where version=?"
   },
   "ffdea2de2bf5c13090e64ba69a275b19ade69a4138946e54219d0e30896545a9": {
     "describe": {

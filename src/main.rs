@@ -9,20 +9,24 @@ use rocket::{Build, Rocket, State};
 use rocket_db_pools::sqlx::{self};
 use rocket_db_pools::{Connection, Database};
 use std::collections::BTreeMap;
+use std::fs;
+
+mod devices;
 mod filters;
 mod mixers;
 mod pipeline;
 mod processor;
 
+use devices::Devices;
 use filters::{compute_peq_filter, create_crossover_filters, create_output_filters, SpeakerAdjust};
 use mixers::{
-    combine_inputs, combine_mixer_name, get_speaker_counts, split_inputs, split_mixer_name, Mixer,
-    SpeakerCounts,
+    combine_inputs, combine_mixer_name, get_speaker_counts, input_speaker_count,
+    output_speaker_count_no_mixer, split_inputs, split_mixer_name, Mixer, SpeakerCounts,
 };
 use pipeline::{create_crossover_pipeline, create_per_speaker_pipeline, Pipeline};
 use processor::{
-    Filter, ProcessorSettings, ProcessorSettingsForCamilla, SelectedDistanceType, Speaker,
-    SpeakerForUI,
+    DeviceType, Filter, ProcessorSettings, ProcessorSettingsForCamilla, SelectedDistanceType,
+    Speaker, SpeakerForUI,
 };
 
 #[derive(Database)]
@@ -37,6 +41,7 @@ struct CamillaConfig {
     mixers: BTreeMap<String, Mixer>,
     filters: BTreeMap<String, SpeakerAdjust>,
     pipeline: Vec<Pipeline>,
+    devices: Devices,
 }
 
 #[derive(Serialize, sqlx::FromRow)]
@@ -56,8 +61,9 @@ struct ConfigVersion {
 
 #[derive(sqlx::FromRow)]
 /// Wrapper to extract distance from sqlx macro
-struct SelectedDistanceWrapper {
+struct SelectedDistanceAndDevice {
     selected_distance: SelectedDistanceType,
+    device: DeviceType,
 }
 
 #[derive(Serialize)]
@@ -120,6 +126,7 @@ async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
             "CREATE TABLE if not exists versions (
                 version integer not null PRIMARY KEY, 
                 version_date text not null,
+                device text not null,
                 selected_distance text not null);",
         )
         .execute(&db.0)
@@ -141,7 +148,7 @@ async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
 /// settings stored in sqlite are converted to the appropriate camilla configuration
 fn convert_processor_settings_to_camilla(
     settings: &ProcessorSettingsForCamilla,
-) -> Result<String, json::serde_json::Error> {
+) -> Result<CamillaConfig, json::serde_json::Error> {
     let configuration_mapping = ConfigurationMapping {
         peq_filters: compute_peq_filter(&settings.filters),
         speaker_counts: get_speaker_counts(&settings.speakers),
@@ -160,6 +167,21 @@ fn convert_processor_settings_to_camilla(
                 &mixer,
                 &output_channel_mapping,
             );
+            let devices = match settings.device {
+                DeviceType::MotuMk5 => Devices::motu_mk5(
+                    combine_mixer.channels.num_in_channel,
+                    combine_mixer.channels.num_out_channel,
+                ),
+                DeviceType::OktoDac8 => Devices::okto_dac8(
+                    combine_mixer.channels.num_in_channel,
+                    combine_mixer.channels.num_out_channel,
+                ),
+                DeviceType::ToppingDm7 => Devices::topping_dm7(
+                    combine_mixer.channels.num_in_channel,
+                    combine_mixer.channels.num_out_channel,
+                ),
+            };
+
             let mixers: BTreeMap<String, Mixer> = BTreeMap::from_iter(
                 vec![
                     (split_mixer_name(), mixer),
@@ -176,39 +198,46 @@ fn convert_processor_settings_to_camilla(
             );
             pipeline.append(&mut per_speaker_pipeline);
             filters.extend(output_filters);
+
             let result = CamillaConfig {
                 pipeline,
                 filters,
                 mixers,
+                devices: devices,
             };
-            json::to_string(&result)
+            Ok(result)
         }
         None => {
             let result = CamillaConfig {
                 pipeline: per_speaker_pipeline,
                 filters: output_filters,
                 mixers: BTreeMap::new(),
+                devices: Devices::init(
+                    input_speaker_count(&configuration_mapping.speaker_counts),
+                    output_speaker_count_no_mixer(&configuration_mapping.speaker_counts),
+                ),
             };
-            json::to_string(&result)
+            Ok(result)
         }
     }
 }
 
 /// reads selected distance type (MS, FEET, METERS) for the specific configration version
-async fn get_selected_distance(
+async fn get_selected_distance_and_device(
     db: &mut Connection<Settings>,
     version: i32,
-) -> Result<SelectedDistanceType, sqlx::Error> {
-    let SelectedDistanceWrapper { selected_distance } = sqlx::query_as!(
-        SelectedDistanceWrapper,
+) -> Result<SelectedDistanceAndDevice, sqlx::Error> {
+    let selected_distance_and_device = sqlx::query_as!(
+        SelectedDistanceAndDevice,
         r#"SELECT 
-            selected_distance as "selected_distance: crate::processor::SelectedDistanceType"
+            selected_distance as "selected_distance: crate::processor::SelectedDistanceType",
+            device as "device: crate::processor::DeviceType"
             from versions where version=?"#,
         version
     )
     .fetch_one(&mut **db)
     .await?;
-    Ok(selected_distance)
+    Ok(selected_distance_and_device)
 }
 
 /// reads filters for the specific configration version
@@ -278,13 +307,17 @@ async fn get_config_for_camilla_from_db(
     db: &mut Connection<Settings>,
     version: i32,
 ) -> Result<ProcessorSettingsForCamilla, sqlx::Error> {
-    let selected_distance = get_selected_distance(db, version).await?;
+    let SelectedDistanceAndDevice {
+        selected_distance,
+        device,
+    } = get_selected_distance_and_device(db, version).await?;
     let filters = get_filters(db, version).await?;
     let speakers = get_speakers_for_camilla(db, version).await?;
     Ok(ProcessorSettingsForCamilla {
         filters,
         speakers,
         selected_distance,
+        device,
     })
 }
 
@@ -293,13 +326,17 @@ async fn get_config_from_db(
     db: &mut Connection<Settings>,
     version: i32,
 ) -> Result<ProcessorSettings, sqlx::Error> {
-    let selected_distance = get_selected_distance(db, version).await?;
+    let SelectedDistanceAndDevice {
+        selected_distance,
+        device,
+    } = get_selected_distance_and_device(db, version).await?;
     let filters = get_filters(db, version).await?;
     let speakers = get_speakers_for_ui(db, version).await?;
     Ok(ProcessorSettings {
         filters,
         speakers,
         selected_distance,
+        device,
     })
 }
 
@@ -363,8 +400,6 @@ fn update_speaker_delays(
         })
         .collect()
 }
-use tungstenite::{connect, Message};
-use url::Url;
 
 #[get("/versions")]
 async fn get_versions(
@@ -425,7 +460,7 @@ async fn config_version(
 async fn apply_config_version(
     mut db: Connection<Settings>,
     version: i32,
-    camilla_dsp_url: &State<String>,
+    alsa_cdsp_config_in: &State<String>,
 ) -> Result<(), BadRequest<String>> {
     let settings = get_config_for_camilla_from_db(&mut db, version)
         .await
@@ -433,14 +468,11 @@ async fn apply_config_version(
     let config = convert_processor_settings_to_camilla(&settings)
         .map_err(|e| BadRequest(Some(e.to_string())))?;
 
-    let ws_url = Url::parse(camilla_dsp_url).map_err(|e| BadRequest(Some(e.to_string())))?;
-    let (mut socket, _response) = connect(ws_url).map_err(|e| BadRequest(Some(e.to_string())))?;
-    let config_as_json = json::to_string(&SetConfig {
-        set_config_json: config,
-    })
-    .map_err(|e| BadRequest(Some(e.to_string())))?;
-    socket
-        .send(Message::Text(config_as_json))
+    let config_as_yaml =
+        serde_yaml::to_string(&config).map_err(|e| BadRequest(Some(e.to_string())))?;
+
+    // writes to the alsa "in" file
+    fs::write(alsa_cdsp_config_in.as_str(), config_as_yaml.as_bytes())
         .map_err(|e| BadRequest(Some(e.to_string())))?;
 
     let _ = sqlx::query!("DELETE from applied_version")
@@ -466,10 +498,11 @@ async fn write_configuration(
     let ConfigVersion { version } = sqlx::query_as!(
         ConfigVersion,
         r#"INSERT INTO versions (
-            version_date, selected_distance
-        ) VALUES (?, ?) RETURNING version as "version: i32""#,
+            version_date, selected_distance, device
+        ) VALUES (?, ?, ?) RETURNING version as "version: i32""#,
         version_date,
-        settings.selected_distance
+        settings.selected_distance,
+        settings.device
     )
     .fetch_one(&mut *db)
     .await
@@ -563,10 +596,10 @@ async fn delete_configuration(
 fn rocket() -> _ {
     let mut args = std::env::args();
     args.next(); //first item is the app name, skip it
-    let camilla_dsp_url = args.next().unwrap_or("ws://127.0.0.1:1234".to_string());
+    let alsa_cdsp_config_in = args.next().unwrap_or("./config_in.yaml".to_string());
     rocket::build()
         .mount("/", FileServer::from(relative!("avprocessor-ui/build")))
-        .manage(camilla_dsp_url)
+        .manage(alsa_cdsp_config_in)
         .attach(Settings::init())
         .attach(AdHoc::try_on_ignite("DB Migrations", run_migrations))
         .mount(
@@ -589,7 +622,8 @@ mod tests {
     use super::FEET_PER_MS;
     use super::METERS_PER_MS;
     use crate::processor::{
-        Filter, ProcessorSettingsForCamilla, SelectedDistanceType, Speaker, SpeakerForUI,
+        DeviceType, Filter, ProcessorSettingsForCamilla, SelectedDistanceType, Speaker,
+        SpeakerForUI,
     };
 
     #[test]
@@ -785,9 +819,11 @@ mod tests {
                 },
             ],
             selected_distance: SelectedDistanceType::MS,
+            device: DeviceType::OktoDac8,
         };
         assert_eq!(
-            convert_processor_settings_to_camilla(&settings).unwrap(),
+            serde_yaml::to_string(&convert_processor_settings_to_camilla(&settings).unwrap())
+                .unwrap(),
             r#"{"mixers":{"combine_sub":{"channels":{"in":7,"out":4},"mapping":[{"sources":[{"channel":2,"gain":0,"inverted":false}],"dest":1},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":0},{"sources":[{"channel":4,"gain":0,"inverted":false}],"dest":2},{"sources":[{"channel":1,"gain":0,"inverted":false},{"channel":3,"gain":0,"inverted":false},{"channel":5,"gain":0,"inverted":false},{"channel":6,"gain":0,"inverted":false}],"dest":3}]},"split_non_sub":{"channels":{"in":4,"out":7},"mapping":[{"sources":[{"channel":1,"gain":0,"inverted":false}],"dest":2},{"sources":[{"channel":1,"gain":0,"inverted":false}],"dest":3},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":0},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":1},{"sources":[{"channel":2,"gain":0,"inverted":false}],"dest":4},{"sources":[{"channel":2,"gain":0,"inverted":false}],"dest":5},{"sources":[{"channel":3,"gain":0,"inverted":false}],"dest":6}]}},"filters":{"crossover_speaker_c":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthHighpass"}},"crossover_speaker_l":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthHighpass"}},"crossover_speaker_r":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthHighpass"}},"crossover_subwooferc":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthLowpass"}},"crossover_subwooferl":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthLowpass"}},"crossover_subwooferr":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthLowpass"}},"delay_c":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"delay_l":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"delay_r":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"delay_sub1":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"gain_c":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_l":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_r":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_sub1":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"peq_l_0":{"type":"Biquad","parameters":{"freq":1000,"q":0.707,"gain":2.0,"type":"Peaking"}},"peq_l_1":{"type":"Biquad","parameters":{"freq":2000,"q":0.707,"gain":2.0,"type":"Peaking"}},"peq_r_2":{"type":"Biquad","parameters":{"freq":2000,"q":0.707,"gain":1.0,"type":"Peaking"}},"volume":{"type":"Volume","parameters":{"ramp_time":200}}},"pipeline":[{"type":"Mixer","name":"split_non_sub"},{"type":"Filter","channel":2,"names":["crossover_speaker_c"]},{"type":"Filter","channel":3,"names":["crossover_subwooferc"]},{"type":"Filter","channel":0,"names":["crossover_speaker_l"]},{"type":"Filter","channel":1,"names":["crossover_subwooferl"]},{"type":"Filter","channel":4,"names":["crossover_speaker_r"]},{"type":"Filter","channel":5,"names":["crossover_subwooferr"]},{"type":"Mixer","name":"combine_sub"},{"type":"Filter","channel":0,"names":["peq_l_0","peq_l_1","delay_l","gain_l","volume"]},{"type":"Filter","channel":1,"names":["delay_c","gain_c","volume"]},{"type":"Filter","channel":2,"names":["peq_r_2","delay_r","gain_r","volume"]},{"type":"Filter","channel":3,"names":["delay_sub1","gain_sub1","volume"]}]}"#
         )
     }
@@ -853,10 +889,12 @@ mod tests {
                 },
             ],
             selected_distance: SelectedDistanceType::MS,
+            device: DeviceType::OktoDac8,
         };
 
         assert_eq!(
-            convert_processor_settings_to_camilla(&settings).unwrap(),
+            serde_yaml::to_string(&convert_processor_settings_to_camilla(&settings).unwrap())
+                .unwrap(),
             r#"{"mixers":{"combine_sub":{"channels":{"in":7,"out":5},"mapping":[{"sources":[{"channel":2,"gain":0,"inverted":false}],"dest":1},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":0},{"sources":[{"channel":4,"gain":0,"inverted":false}],"dest":2},{"sources":[{"channel":1,"gain":0,"inverted":false},{"channel":3,"gain":0,"inverted":false},{"channel":5,"gain":0,"inverted":false},{"channel":6,"gain":0,"inverted":false}],"dest":3},{"sources":[{"channel":1,"gain":0,"inverted":false},{"channel":3,"gain":0,"inverted":false},{"channel":5,"gain":0,"inverted":false},{"channel":6,"gain":0,"inverted":false}],"dest":4}]},"split_non_sub":{"channels":{"in":4,"out":7},"mapping":[{"sources":[{"channel":1,"gain":0,"inverted":false}],"dest":2},{"sources":[{"channel":1,"gain":0,"inverted":false}],"dest":3},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":0},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":1},{"sources":[{"channel":2,"gain":0,"inverted":false}],"dest":4},{"sources":[{"channel":2,"gain":0,"inverted":false}],"dest":5},{"sources":[{"channel":3,"gain":0,"inverted":false}],"dest":6}]}},"filters":{"crossover_speaker_c":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthHighpass"}},"crossover_speaker_l":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthHighpass"}},"crossover_speaker_r":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthHighpass"}},"crossover_subwooferc":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthLowpass"}},"crossover_subwooferl":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthLowpass"}},"crossover_subwooferr":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthLowpass"}},"delay_c":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"delay_l":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"delay_r":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"delay_sub1":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"delay_sub2":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"gain_c":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_l":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_r":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_sub1":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_sub2":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"peq_l_0":{"type":"Biquad","parameters":{"freq":1000,"q":0.707,"gain":2.0,"type":"Peaking"}},"peq_l_1":{"type":"Biquad","parameters":{"freq":2000,"q":0.707,"gain":2.0,"type":"Peaking"}},"peq_r_2":{"type":"Biquad","parameters":{"freq":2000,"q":0.707,"gain":1.0,"type":"Peaking"}},"volume":{"type":"Volume","parameters":{"ramp_time":200}}},"pipeline":[{"type":"Mixer","name":"split_non_sub"},{"type":"Filter","channel":2,"names":["crossover_speaker_c"]},{"type":"Filter","channel":3,"names":["crossover_subwooferc"]},{"type":"Filter","channel":0,"names":["crossover_speaker_l"]},{"type":"Filter","channel":1,"names":["crossover_subwooferl"]},{"type":"Filter","channel":4,"names":["crossover_speaker_r"]},{"type":"Filter","channel":5,"names":["crossover_subwooferr"]},{"type":"Mixer","name":"combine_sub"},{"type":"Filter","channel":0,"names":["peq_l_0","peq_l_1","delay_l","gain_l","volume"]},{"type":"Filter","channel":1,"names":["delay_c","gain_c","volume"]},{"type":"Filter","channel":2,"names":["peq_r_2","delay_r","gain_r","volume"]},{"type":"Filter","channel":3,"names":["delay_sub1","gain_sub1","volume"]},{"type":"Filter","channel":4,"names":["delay_sub2","gain_sub2","volume"]}]}"#
         )
     }
@@ -921,10 +959,12 @@ mod tests {
                 },
             ],
             selected_distance: SelectedDistanceType::MS,
+            device: DeviceType::OktoDac8,
         };
 
         assert_eq!(
-            convert_processor_settings_to_camilla(&settings).unwrap(),
+            serde_yaml::to_string(&convert_processor_settings_to_camilla(&settings).unwrap())
+                .unwrap(),
             r#"{"mixers":{"combine_sub":{"channels":{"in":4,"out":5},"mapping":[{"sources":[{"channel":1,"gain":0,"inverted":false}],"dest":1},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":0},{"sources":[{"channel":2,"gain":0,"inverted":false}],"dest":2},{"sources":[{"channel":3,"gain":0,"inverted":false}],"dest":3},{"sources":[{"channel":3,"gain":0,"inverted":false}],"dest":4}]},"split_non_sub":{"channels":{"in":4,"out":4},"mapping":[{"sources":[{"channel":1,"gain":0,"inverted":false}],"dest":1},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":0},{"sources":[{"channel":2,"gain":0,"inverted":false}],"dest":2},{"sources":[{"channel":3,"gain":0,"inverted":false}],"dest":3}]}},"filters":{"delay_c":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"delay_l":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"delay_r":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"delay_sub1":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"delay_sub2":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"gain_c":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_l":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_r":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_sub1":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_sub2":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"peq_l_0":{"type":"Biquad","parameters":{"freq":1000,"q":0.707,"gain":2.0,"type":"Peaking"}},"peq_l_1":{"type":"Biquad","parameters":{"freq":2000,"q":0.707,"gain":2.0,"type":"Peaking"}},"peq_r_2":{"type":"Biquad","parameters":{"freq":2000,"q":0.707,"gain":1.0,"type":"Peaking"}},"volume":{"type":"Volume","parameters":{"ramp_time":200}}},"pipeline":[{"type":"Mixer","name":"split_non_sub"},{"type":"Mixer","name":"combine_sub"},{"type":"Filter","channel":0,"names":["peq_l_0","peq_l_1","delay_l","gain_l","volume"]},{"type":"Filter","channel":1,"names":["delay_c","gain_c","volume"]},{"type":"Filter","channel":2,"names":["peq_r_2","delay_r","gain_r","volume"]},{"type":"Filter","channel":3,"names":["delay_sub1","gain_sub1","volume"]},{"type":"Filter","channel":4,"names":["delay_sub2","gain_sub2","volume"]}]}"#
         )
     }
@@ -989,10 +1029,12 @@ mod tests {
                 },
             ],
             selected_distance: SelectedDistanceType::MS,
+            device: DeviceType::OktoDac8,
         };
 
         assert_eq!(
-            convert_processor_settings_to_camilla(&settings).unwrap(),
+            serde_yaml::to_string(&convert_processor_settings_to_camilla(&settings).unwrap())
+                .unwrap(),
             r#"{"mixers":{"combine_sub":{"channels":{"in":5,"out":5},"mapping":[{"sources":[{"channel":2,"gain":0,"inverted":false}],"dest":1},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":0},{"sources":[{"channel":3,"gain":0,"inverted":false}],"dest":2},{"sources":[{"channel":1,"gain":0,"inverted":false},{"channel":4,"gain":0,"inverted":false}],"dest":3},{"sources":[{"channel":1,"gain":0,"inverted":false},{"channel":4,"gain":0,"inverted":false}],"dest":4}]},"split_non_sub":{"channels":{"in":4,"out":5},"mapping":[{"sources":[{"channel":1,"gain":0,"inverted":false}],"dest":2},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":0},{"sources":[{"channel":0,"gain":0,"inverted":false}],"dest":1},{"sources":[{"channel":2,"gain":0,"inverted":false}],"dest":3},{"sources":[{"channel":3,"gain":0,"inverted":false}],"dest":4}]}},"filters":{"crossover_speaker_l":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthHighpass"}},"crossover_subwooferl":{"type":"BiquadCombo","parameters":{"freq":80,"order":4,"type":"ButterworthLowpass"}},"delay_c":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"delay_l":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"delay_r":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"delay_sub1":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"delay_sub2":{"type":"Delay","parameters":{"delay":10.0,"unit":"ms"}},"gain_c":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_l":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_r":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_sub1":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"gain_sub2":{"type":"Gain","parameters":{"gain":1.0,"inverted":false}},"peq_l_0":{"type":"Biquad","parameters":{"freq":1000,"q":0.707,"gain":2.0,"type":"Peaking"}},"peq_l_1":{"type":"Biquad","parameters":{"freq":2000,"q":0.707,"gain":2.0,"type":"Peaking"}},"peq_r_2":{"type":"Biquad","parameters":{"freq":2000,"q":0.707,"gain":1.0,"type":"Peaking"}},"volume":{"type":"Volume","parameters":{"ramp_time":200}}},"pipeline":[{"type":"Mixer","name":"split_non_sub"},{"type":"Filter","channel":0,"names":["crossover_speaker_l"]},{"type":"Filter","channel":1,"names":["crossover_subwooferl"]},{"type":"Mixer","name":"combine_sub"},{"type":"Filter","channel":0,"names":["peq_l_0","peq_l_1","delay_l","gain_l","volume"]},{"type":"Filter","channel":1,"names":["delay_c","gain_c","volume"]},{"type":"Filter","channel":2,"names":["peq_r_2","delay_r","gain_r","volume"]},{"type":"Filter","channel":3,"names":["delay_sub1","gain_sub1","volume"]},{"type":"Filter","channel":4,"names":["delay_sub2","gain_sub2","volume"]}]}"#
         )
     }

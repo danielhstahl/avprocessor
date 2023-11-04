@@ -9,7 +9,7 @@ Running local commands (assuming an appropriate json file; a "serialized" versio
 `curl -X GET http://127.0.0.1:8000/config/latest`
 
 
-Starting camilla:
+For testing, start camilla:
 
 `path/to/camilladsp -v -p1234 test.yaml`
 
@@ -44,6 +44,6 @@ The backend is a simple sqlite database.  There are five tables:
 
 The computation for delays are relatively straightforward.  The longest distance speaker is taken as having 0 delay, and all other speakers are delayed relative to that speaker so that the sound hits the listener from all speakers simultaneously. 
 
-# TODO
+# Alsa integration
 
-* Add docstrings to the relevant rust functions
+`avprocessor` is designed to be used with [alsa_cdsp](https://github.com/scripple/alsa_cdsp).  The `config_in` parameter must match the output path for `avprocessor`.  
