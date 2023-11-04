@@ -160,6 +160,7 @@ fn convert_processor_settings_to_camilla(
 
     let mut per_speaker_pipeline =
         create_per_speaker_pipeline(&settings.speakers, &configuration_mapping.peq_filters);
+
     match split_mixer {
         Some((mixer, input_channel_mapping, output_channel_mapping)) => {
             let combine_mixer = combine_inputs(
@@ -181,7 +182,6 @@ fn convert_processor_settings_to_camilla(
                     combine_mixer.channels.num_out_channel,
                 ),
             };
-
             let mixers: BTreeMap<String, Mixer> = BTreeMap::from_iter(
                 vec![
                     (split_mixer_name(), mixer),
@@ -203,19 +203,23 @@ fn convert_processor_settings_to_camilla(
                 pipeline,
                 filters,
                 mixers,
-                devices: devices,
+                devices,
             };
             Ok(result)
         }
         None => {
+            let input_channels = input_speaker_count(&configuration_mapping.speaker_counts);
+            let output_channels =
+                output_speaker_count_no_mixer(&configuration_mapping.speaker_counts);
             let result = CamillaConfig {
                 pipeline: per_speaker_pipeline,
                 filters: output_filters,
                 mixers: BTreeMap::new(),
-                devices: Devices::init(
-                    input_speaker_count(&configuration_mapping.speaker_counts),
-                    output_speaker_count_no_mixer(&configuration_mapping.speaker_counts),
-                ),
+                devices: match settings.device {
+                    DeviceType::MotuMk5 => Devices::motu_mk5(input_channels, output_channels),
+                    DeviceType::OktoDac8 => Devices::okto_dac8(input_channels, output_channels),
+                    DeviceType::ToppingDm7 => Devices::topping_dm7(input_channels, output_channels),
+                },
             };
             Ok(result)
         }
