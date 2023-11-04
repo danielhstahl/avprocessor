@@ -7,6 +7,21 @@ import { DelayAction, useDelay, DelayType } from '../state/delay';
 import { DeviceAction, useDevice, DeviceType } from '../state/device';
 const { Text, Title } = Typography
 
+const DEVICE_LABELS = [
+    {
+        value: DeviceType.MotuMk5,
+        label: "Motu UltraLite MK5"
+    },
+    {
+        value: DeviceType.OktoDac8,
+        label: "Octo DAC8 Pro"
+    },
+    {
+        value: DeviceType.ToppingDm7,
+        label: "Topping DM7"
+    }
+]
+
 const AdvancedComponent: React.FC = () => {
     const { state: { versions }, dispatch: versionDispatch } = useVersion()
     const { state: { delayType }, dispatch: delayTypeDispatch } = useDelay()
@@ -32,7 +47,7 @@ const AdvancedComponent: React.FC = () => {
                 <Select
                     value={deviceType}
                     onChange={v => deviceTypeDispatch({ type: DeviceAction.UPDATE, value: v })}
-                    options={Object.values(DeviceType).map(v => ({ value: v, label: v }))}
+                    options={DEVICE_LABELS}
                     style={{ width: '100%' }} />
             </Col>
             <Col xs={24} md={12}>
