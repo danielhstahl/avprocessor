@@ -12,11 +12,11 @@ export interface FilterWithIndex extends Filter {
 }
 
 const initialState: State = {
-    filters: []
+    filters: {}
 }
 
 type State = {
-    filters: FilterWithIndex[]
+    filters: SpeakerFilter
 }
 export enum FilterAction {
     UPDATE,
@@ -57,48 +57,57 @@ const getDefaultSettings: (speaker: string, i: number) => FilterWithIndex = (spe
     index
 })
 
-type SpeakerFilter = {
-    filters: FilterWithIndex[],
-    storeIndeces: {
-        [key: string]: number,
-    }
+
+export type SpeakerFilter = {
+    [key: string]: FilterWithIndex[],
 }
 
 const INDEX_START = 1 //could be zero as well, doesnt really matter
 //exported for testing
-export const setFiltersPure = (filters: Filter[]) => filters.reduce<SpeakerFilter>((agg: SpeakerFilter, v: Filter) => {
-    const { filters, storeIndeces } = agg
-    const index = storeIndeces[v.speaker] === undefined ? INDEX_START : storeIndeces[v.speaker] + 1
-    return {
-        filters: [...filters, { ...v, index }],
-        storeIndeces: { //this is just to keep track of the index per speaker.  Kind of lame, but best I can think of ATM
-            ...storeIndeces,
-            [v.speaker]: index
+export const perSpeakerFilters: (filters: Filter[]) => SpeakerFilter = (filters: Filter[]) => {
+    return filters.reduce<SpeakerFilter>((agg, filter) => {
+        const currentFilters = agg[filter.speaker] || []
+        const index = currentFilters.length + INDEX_START
+        const filterWithIndex = { ...filter, index }
+        return {
+            ...agg,
+            [filter.speaker]: [...currentFilters, filterWithIndex]
         }
-    }
-}, { filters: [], storeIndeces: {} }).filters
+    }, {})
+}
 
 //exported for testing
-export const setFilterBase = (speakerConfiguration: string, current_filters: FilterWithIndex[]) => {
+export const setFilterBase = (
+    speakerConfiguration: string,
+    current_filters: SpeakerFilter
+) => {
     const baseSpeakers = SPEAKER_OPTIONS.find(s => s.label === speakerConfiguration)
-    return baseSpeakers ? baseSpeakers.speakers.reduce<FilterWithIndex[]>((filters, baseSpeaker) => {
-        const existingFilters = current_filters.filter(s => s.speaker === baseSpeaker.speaker)
-        return existingFilters.length > 0 ? [...filters, ...existingFilters] : filters
-    }, []) : undefined
+    return baseSpeakers ? baseSpeakers.speakers.reduce<SpeakerFilter>((perSpeakerFilters, baseSpeaker) => {
+        const existingFilters = current_filters[baseSpeaker.speaker] || []
+        return { ...perSpeakerFilters, [baseSpeaker.speaker]: existingFilters }
+    }, {}) : undefined
 }
 
 export function filterReducer(state: State, action: Action): State {
     switch (action.type) {
         case FilterAction.UPDATE:
             const filterToUpdate = action.value as FilterWithIndex
-            return {
-                filters: state.filters.map(v => v.speaker === filterToUpdate.speaker && v.index === filterToUpdate.index ? filterToUpdate : v),
-            }
+            const speakerFiltersToUpdate = state.filters[filterToUpdate.speaker]
+            return speakerFiltersToUpdate ? {
+                filters: {
+                    ...state.filters,
+                    [filterToUpdate.speaker]: speakerFiltersToUpdate.map(v => v.index === filterToUpdate.index ? filterToUpdate : v),
+                }
+            } : state
         case FilterAction.ADD:
             const speaker = action.value as string
-            return {
-                filters: [...state.filters, getDefaultSettings(speaker, state.filters.filter(v => v.speaker === speaker).length + INDEX_START)]
-            }
+            const speakerFilterToAdd = state.filters[speaker]
+            return speakerFilterToAdd ? {
+                filters: {
+                    ...state.filters,
+                    [speaker]: [...speakerFilterToAdd, getDefaultSettings(speaker, speakerFilterToAdd.length + INDEX_START)]
+                }
+            } : state
         case FilterAction.INIT:
             const speakerConfiguration = action.value as string
             return {
@@ -106,13 +115,17 @@ export function filterReducer(state: State, action: Action): State {
             }
         case FilterAction.REMOVE:
             const filterToRemove = action.value as FilterWithIndex
-            return {
-                filters: state.filters.filter(v => !(v.speaker === filterToRemove.speaker && v.index === filterToRemove.index)),
-            }
+            const speakerFilterToRemove = state.filters[filterToRemove.speaker]
+            return speakerFilterToRemove ? {
+                filters: {
+                    ...state.filters,
+                    [filterToRemove.speaker]: speakerFilterToRemove.filter(v => v.index !== filterToRemove.index),
+                }
+            } : state
         case FilterAction.SET:
             const filters = action.value as Filter[]
             return {
-                filters: setFiltersPure(filters)
+                filters: perSpeakerFilters(filters)
             }
         default:
             return state

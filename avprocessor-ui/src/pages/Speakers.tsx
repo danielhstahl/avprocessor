@@ -2,7 +2,7 @@ import { List, Select, Space, Typography, Card, Button, message, Row, Col } from
 import { Speaker, SPEAKER_OPTIONS } from '../state/speaker'
 import React, { useState } from 'react';
 import { useSpeaker, SpeakerAction } from '../state/speaker'
-import { useFilter, FilterWithIndex, FilterAction } from '../state/filter'
+import { useFilter, FilterWithIndex, FilterAction, SpeakerFilter } from '../state/filter'
 import SpeakerRecord, { SpeakerProps } from '../components/Speakers'
 import PeqRecord, { PeqProps } from '../components/Peq'
 import { useVersion, VersionAction } from '../state/version'
@@ -52,26 +52,21 @@ const SpeakerCard = ({
     </Card>
 }
 
-type SpeakerFilter = Record<string, FilterWithIndex[]>
-const perSpeakerFilters: (filters: FilterWithIndex[]) => SpeakerFilter = (filters: FilterWithIndex[]) => {
-    return filters.reduce<SpeakerFilter>((agg, filter) => {
-        return {
-            ...agg,
-            [filter.speaker]: agg[filter.speaker] ? [...agg[filter.speaker], filter] : [filter]
-        }
-    }, {})
+
+const unwrapSpeakerFilters = (speakerFilters: SpeakerFilter) => {
+    return Object.values(speakerFilters).reduce((agg, curr) => {
+        return [...agg, ...curr]
+    }, [])
 }
 interface SpeakerComponentProps {
     getConfigurationProp?: (_: number) => Promise<ConfigPayload>
 }
 const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationProp = getConfiguration }: SpeakerComponentProps) => {
     const { state: { speakers, speakerConfiguration }, dispatch: speakerDispatch } = useSpeaker()
-    const { state: { filters }, dispatch: filterDispatch } = useFilter()
+    const { state: { filters: speakerFilters }, dispatch: filterDispatch } = useFilter()
     const { state: { versions, selectedVersion }, dispatch: versionDispatch } = useVersion()
     const { state: { delayType }, dispatch: delayDispatch } = useDelay()
     const { state: { deviceType }, dispatch: deviceDispatch } = useDevice()
-
-    const speakerFilters = perSpeakerFilters(filters)
 
     const [messageApi, contextHolder] = message.useMessage()
 
@@ -93,14 +88,16 @@ const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationPro
                 .then(applySuccess).catch(saveFailure)
         }
     }
-    const onSave = () => saveConfig({ speakers, filters, selectedDistance: delayType, device: deviceType })
-        .then(value => {
-            versionDispatch({ type: VersionAction.ADD, value })
-            versionDispatch({ type: VersionAction.SELECT, value: value.version })
-        })
-        .then(saveSuccess)
-        .catch(saveFailure)
-
+    const onSave = () => {
+        const filters = unwrapSpeakerFilters(speakerFilters)
+        saveConfig({ speakers, filters, selectedDistance: delayType, device: deviceType })
+            .then(value => {
+                versionDispatch({ type: VersionAction.ADD, value })
+                versionDispatch({ type: VersionAction.SELECT, value: value.version })
+            })
+            .then(saveSuccess)
+            .catch(saveFailure)
+    }
     const onSelectVersion = (version: number) => {
         versionDispatch({ type: VersionAction.SELECT, value: version })
         getConfigurationProp(version).then(({ filters, speakers, selectedDistance, device }) => {
@@ -148,7 +145,7 @@ const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationPro
                 delayType={delayType}
                 speaker={speaker}
                 updateSpeaker={(speaker: Speaker) => speakerDispatch({ type: SpeakerAction.UPDATE, value: speaker })}
-                filters={speakerFilters[speaker.speaker] || []}
+                filters={speakerFilters[speaker.speaker]}
                 updateFilter={(filter: FilterWithIndex) => filterDispatch({ type: FilterAction.UPDATE, value: filter })}
                 addFilter={() => filterDispatch({ type: FilterAction.ADD, value: speaker.speaker })}
                 removeFilter={(filter: FilterWithIndex) => filterDispatch({ type: FilterAction.REMOVE, value: filter })}
