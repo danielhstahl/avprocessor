@@ -93,21 +93,21 @@ export function filterReducer(state: State, action: Action): State {
         case FilterAction.UPDATE:
             const filterToUpdate = action.value as FilterWithIndex
             const speakerFiltersToUpdate = state.filters[filterToUpdate.speaker]
-            return {
+            return speakerFiltersToUpdate ? {
                 filters: {
                     ...state.filters,
                     [filterToUpdate.speaker]: speakerFiltersToUpdate.map(v => v.index === filterToUpdate.index ? filterToUpdate : v),
                 }
-            }
+            } : state
         case FilterAction.ADD:
             const speaker = action.value as string
             const speakerFilterToAdd = state.filters[speaker]
-            return {
+            return speakerFilterToAdd ? {
                 filters: {
                     ...state.filters,
                     [speaker]: [...speakerFilterToAdd, getDefaultSettings(speaker, speakerFilterToAdd.length + INDEX_START)]
                 }
-            }
+            } : state
         case FilterAction.INIT:
             const speakerConfiguration = action.value as string
             return {
