@@ -8,6 +8,7 @@ pub fn delay_filter_name(speaker_name: &str) -> String {
 pub fn gain_filter_name(speaker_name: &str) -> String {
     format!("gain_{}", speaker_name)
 }
+
 pub fn peq_filter_name(speaker_name: &str, peq_index: usize) -> String {
     format!("peq_{}_{}", speaker_name, peq_index)
 }
