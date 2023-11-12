@@ -47,3 +47,20 @@ The computation for delays are relatively straightforward.  The longest distance
 # Alsa integration
 
 `avprocessor` is designed to be used with [alsa_cdsp](https://github.com/scripple/alsa_cdsp).  The `config_in` parameter must match the output path for `avprocessor`.  
+
+# Exact instructinos for RBPi on ubuntu server 23.10
+
+* sudo apt install libasound2-dev
+* sudo apt install alsa-utils make pkgconf build-essential python3-websockets
+* mkdir ~/camilladsp ~/camilladsp/coeffs ~/camilladsp/configs
+* wget https://github.com/HEnquist/camilladsp/releases/download/v1.0.3/camilladsp-linux-aarch64.tar.gz -P ~/camilladsp/
+* tar -xvf ~/camilladsp/camilladsp-linux-aarch64.tar.gz -C ~/camilladsp/
+* cd camilladsp
+* rm camilladsp-linux-aarch64.tar.gz
+* git clone https://github.com/scripple/alsa_cdsp.git
+* cd alsa_cdsp
+* make 
+* sudo make install
+* cd ..
+* git clone https://github.com/danielhstahl/avprocessor.git
+
