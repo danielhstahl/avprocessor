@@ -30,6 +30,7 @@ jobs:
           cargo build --release --target ${{ matrix.target }}
         env:
           SQLX_OFFLINE: true # needed to keep it from trying to connect to a database
+          RUSTFLAGS: "-C link-args=-fstack-protector-all -lssp"
 
       - name: Release
         run: |
