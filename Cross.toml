@@ -1,10 +1,10 @@
 [build.env]
-passthrough = ["SQLX_OFFLINE"]
+passthrough = ["SQLX_OFFLINE", "RUSTFLAGS"]
 
 [target.x86_64-unknown-linux-musl]
 pre-build = [
     "dpkg --add-architecture $CROSS_DEB_ARCH",
-    "apt-get update && apt-get install --assume-yes libssl-dev:$CROSS_DEB_ARCH libsqlite3-dev:$CROSS_DEB_ARCH",
+    "apt-get update && apt-get install --assume-yes libssl-dev libsqlite3-dev",
 ]
 
 [target.armv7-unknown-linux-gnueabihf]
