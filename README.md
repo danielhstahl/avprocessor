@@ -62,5 +62,7 @@ The computation for delays are relatively straightforward.  The longest distance
 * make 
 * sudo make install
 * cd ..
-* git clone https://github.com/danielhstahl/avprocessor.git
-* 
+* wget https://github.com/danielhstahl/avprocessor/releases/download/v0.0.11/avprocessor-aarch64-unknown-linux-gnu.tar.gz -P ~/camilladsp/
+* wget https://github.com/danielhstahl/avprocessor/releases/download/v0.0.11/avprocessor-ui.tar.gz -P ~/camilladsp/
+* tar -xvf ~/camilladsp/avprocessor-aarch64-unknown-linux-gnu.tar.gz -C ~/camilladsp/
+* tar -xvf ~/camilladsp/avprocessor-ui.tar.gz -C ~/camilladsp/

@@ -602,8 +602,11 @@ fn rocket() -> _ {
     let mut args = std::env::args();
     args.next(); //first item is the app name, skip it
     let alsa_cdsp_config_in = args.next().unwrap_or("./config_in.yaml".to_string());
+    let html_files = args
+        .next()
+        .unwrap_or(relative!("avprocessor-ui/build").to_string());
     rocket::build()
-        .mount("/", FileServer::from(relative!("avprocessor-ui/build")))
+        .mount("/", FileServer::from(html_files))
         .manage(alsa_cdsp_config_in)
         .attach(Settings::init())
         .attach(AdHoc::try_on_ignite("DB Migrations", run_migrations))
