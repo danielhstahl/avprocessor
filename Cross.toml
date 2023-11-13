@@ -1,0 +1,5 @@
+[build.env]
+passthrough = ["SQLX_OFFLINE"]
+
+#[target.aarch64-unknown-linux-gnu.env]
+#volumes = ["sqlx-data.json"]
