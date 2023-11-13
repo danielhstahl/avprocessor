@@ -31,10 +31,12 @@ pub fn create_per_speaker_pipeline(
         .collect()
 }
 
+/** */
+
 pub fn create_crossover_pipeline(
     split_mixer_name: String,
     combine_mixer_name: String,
-    input_channel_mapping: &BTreeMap<&String, (bool, usize, Vec<usize>)>,
+    input_channel_mapping: &BTreeMap<&String, (bool, bool, usize, Vec<usize>)>,
 ) -> Vec<Pipeline> {
     std::iter::once(Pipeline::Mixer(PipelineMixer {
         pipeline_type: PipelineType::Mixer,
@@ -43,8 +45,8 @@ pub fn create_crossover_pipeline(
     .chain(
         input_channel_mapping
             .iter()
-            .filter(|(_, (is_crossover, _, _))| *is_crossover)
-            .map(|(key, (_, _, channel_indeces))| {
+            .filter(|(_, (is_crossover, _, _, _))| *is_crossover)
+            .map(|(key, (_, _, _, channel_indeces))| {
                 vec![
                     Pipeline::Filter(PipelineFilter {
                         pipeline_type: PipelineType::Filter,
@@ -108,16 +110,16 @@ mod tests {
     use std::collections::BTreeMap;
     #[test]
     fn check_create_pipeline() {
-        let mut input_channel_mapping: BTreeMap<&String, (bool, usize, Vec<usize>)> =
+        let mut input_channel_mapping: BTreeMap<&String, (bool, bool, usize, Vec<usize>)> =
             BTreeMap::new();
         let l = "l".to_string();
         let r = "r".to_string();
         let c = "c".to_string();
         let sub1 = "sub1".to_string();
-        input_channel_mapping.insert(&l, (true, 0, vec![0, 1]));
-        input_channel_mapping.insert(&r, (true, 1, vec![2, 3]));
-        input_channel_mapping.insert(&c, (true, 2, vec![4, 5]));
-        input_channel_mapping.insert(&sub1, (false, 3, vec![6]));
+        input_channel_mapping.insert(&l, (true, false, 0, vec![0, 1]));
+        input_channel_mapping.insert(&r, (true, false, 1, vec![2, 3]));
+        input_channel_mapping.insert(&c, (true, false, 2, vec![4, 5]));
+        input_channel_mapping.insert(&sub1, (false, true, 3, vec![6]));
         let result = create_crossover_pipeline(
             "myinitmixer".to_string(),
             "myfinalmixer".to_string(),

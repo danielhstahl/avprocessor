@@ -45,7 +45,7 @@ pub struct SpeakerCounts {
     speakers_exclude_sub: usize,
     input_subwoofers: usize,
     output_subwoofers: usize,
-    input_subwoofer_speakers: Vec<String>,
+    pub(crate) input_subwoofer_speakers: Vec<String>,
 }
 
 pub fn get_speaker_counts(speakers: &[Speaker]) -> SpeakerCounts {
@@ -86,7 +86,7 @@ pub fn split_inputs<'a>(
     speaker_counts: &'a SpeakerCounts,
 ) -> Option<(
     Mixer,
-    BTreeMap<&'a String, (bool, usize, Vec<usize>)>,
+    BTreeMap<&'a String, (bool, bool, usize, Vec<usize>)>,
     BTreeMap<&'a String, (usize, Vec<usize>)>,
 )> {
     let SpeakerCounts {
@@ -96,9 +96,10 @@ pub fn split_inputs<'a>(
         ..
     } = speaker_counts;
 
-    // what if input has a subwoofer?  Don't I need to mix sub back to speakers?
+    // what if input has a subwoofer?  Do I need to mix sub back to speakers?
     if *output_subwoofers > 0 {
-        let mut input_channel_mapping: BTreeMap<&String, (bool, usize, Vec<usize>)> =
+        //key is speakername, then tuple of (whether it has a crossover, whether is a sub, input index, output indeces)
+        let mut input_channel_mapping: BTreeMap<&String, (bool, bool, usize, Vec<usize>)> =
             BTreeMap::new();
         let mut output_channel_mapping: BTreeMap<&String, (usize, Vec<usize>)> = BTreeMap::new();
 
@@ -116,7 +117,12 @@ pub fn split_inputs<'a>(
             if speaker.crossover.is_some() {
                 input_channel_mapping.insert(
                     &speaker.speaker,
-                    (true, speaker_index, vec![track_index, track_index + 1]),
+                    (
+                        true,
+                        speaker.is_subwoofer,
+                        speaker_index,
+                        vec![track_index, track_index + 1],
+                    ),
                 );
 
                 for (sub_index, sub_name) in subs.iter() {
@@ -128,8 +134,15 @@ pub fn split_inputs<'a>(
                 output_channel_mapping.insert(&speaker.speaker, (speaker_index, vec![track_index]));
                 track_index += 2;
             } else if speaker.crossover.is_none() {
-                input_channel_mapping
-                    .insert(&speaker.speaker, (false, speaker_index, vec![track_index]));
+                input_channel_mapping.insert(
+                    &speaker.speaker,
+                    (
+                        false,
+                        speaker.is_subwoofer,
+                        speaker_index,
+                        vec![track_index],
+                    ),
+                );
                 output_channel_mapping.insert(&speaker.speaker, (speaker_index, vec![track_index]));
                 track_index += 1;
             }
@@ -137,7 +150,7 @@ pub fn split_inputs<'a>(
         for (index, speaker) in input_subwoofer_speakers.iter().enumerate() {
             input_channel_mapping.insert(
                 &speaker,
-                (false, speakers_exclude_sub + index, vec![track_index]),
+                (false, true, speakers_exclude_sub + index, vec![track_index]),
             );
             for (sub_index, sub_name) in subs.iter() {
                 output_channel_mapping
@@ -155,12 +168,12 @@ pub fn split_inputs<'a>(
 
         let mapping: Vec<Mapping> = input_channel_mapping
             .iter()
-            .map(|(_, (_, speaker_index, channel_indeces))| {
+            .map(|(_, (_, is_sub, speaker_index, channel_indeces))| {
                 channel_indeces.iter().map(|channel_index| Mapping {
                     dest: *channel_index,
                     sources: vec![Source {
                         channel: *speaker_index,
-                        gain: 0,
+                        gain: if *is_sub { 10 } else { 0 }, //bass boost needed for subwoofer channel.  careful, turning up camilladsp to MAX volume will cause issues because of this
                         inverted: false,
                     }],
                 })
