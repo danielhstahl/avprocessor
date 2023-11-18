@@ -19,6 +19,10 @@ const DEVICE_LABELS = [
     {
         value: DeviceType.ToppingDm7,
         label: "Topping DM7"
+    },
+    {
+        value: DeviceType.HDMI,
+        label: "Generic HDMI"
     }
 ]
 

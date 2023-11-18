@@ -5,7 +5,7 @@ pub struct CaptureConfig {
     #[serde(rename = "type")]
     device_type: String,
     channels: usize,
-    filename: String,
+    device: String,
     format: String,
 }
 
@@ -22,7 +22,7 @@ pub struct PlaybackConfig {
 #[derive(Serialize)]
 #[serde(crate = "rocket::serde")]
 pub struct Devices {
-    samplerate: String, //using ALSA plugin
+    samplerate: i32, //using ALSA plugin
     chunksize: i32,
     queuelimit: i32,
     capture: CaptureConfig,
@@ -34,14 +34,14 @@ impl Devices {
     // will input channels be consistent??  will I always get 8 channels of PCM over HDMI even if its stereo?
     pub fn okto_dac8(input_channels: usize, output_channels: usize) -> Self {
         Self {
-            samplerate: "$samplerate$".to_string(),
+            samplerate: 96000, //high sample rate; should be transparent
             chunksize: 1024,
             queuelimit: 1,
             capture: CaptureConfig {
-                device_type: "File".to_string(),
+                device_type: "Alsa".to_string(),
                 channels: input_channels,
-                filename: "/dev/stdin".to_string(),
-                format: "$format$".to_string(),
+                device: "hw:Loopback,1".to_string(),
+                format: "S32LE".to_string(),
             },
             playback: PlaybackConfig {
                 device_type: "Alsa".to_string(),
@@ -52,16 +52,36 @@ impl Devices {
         }
     }
 
-    pub fn topping_dm7(input_channels: usize, output_channels: usize) -> Self {
+    pub fn hdmi(input_channels: usize, output_channels: usize) -> Self {
         Self {
-            samplerate: "$samplerate$".to_string(),
+            samplerate: 96000, //high sample rate; should be transparent
             chunksize: 1024,
             queuelimit: 1,
             capture: CaptureConfig {
-                device_type: "File".to_string(),
+                device_type: "Alsa".to_string(),
                 channels: input_channels,
-                filename: "/dev/stdin".to_string(),
-                format: "$format$".to_string(),
+                device: "hw:Loopback,1".to_string(),
+                format: "S16LE".to_string(),
+            },
+            playback: PlaybackConfig {
+                device_type: "Alsa".to_string(),
+                channels: output_channels,
+                device: "hw:b1".to_string(),
+                format: "S16LE".to_string(),
+            },
+        }
+    }
+
+    pub fn topping_dm7(input_channels: usize, output_channels: usize) -> Self {
+        Self {
+            samplerate: 96000, //high sample rate; should be transparent
+            chunksize: 1024,
+            queuelimit: 1,
+            capture: CaptureConfig {
+                device_type: "Alsa".to_string(),
+                channels: input_channels,
+                device: "hw:Loopback,1".to_string(),
+                format: "S32LE".to_string(),
             },
             playback: PlaybackConfig {
                 device_type: "Alsa".to_string(),
@@ -73,14 +93,14 @@ impl Devices {
     }
     pub fn motu_mk5(input_channels: usize, output_channels: usize) -> Self {
         Self {
-            samplerate: "$samplerate$".to_string(),
+            samplerate: 96000, //high sample rate; should be transparent
             chunksize: 1024,
             queuelimit: 1,
             capture: CaptureConfig {
-                device_type: "File".to_string(),
+                device_type: "Alsa".to_string(),
                 channels: input_channels,
-                filename: "/dev/stdin".to_string(),
-                format: "$format$".to_string(),
+                device: "hw:Loopback,1".to_string(),
+                format: "S24LE3".to_string(),
             },
             playback: PlaybackConfig {
                 device_type: "Alsa".to_string(),

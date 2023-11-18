@@ -4,7 +4,8 @@ import { useReducer, useContext, createContext, PropsWithChildren } from "react"
 export enum DeviceType {
     OktoDac8 = 'oktodac8',
     ToppingDm7 = 'toppingdm7',
-    MotuMk5 = 'motumk5'
+    MotuMk5 = 'motumk5',
+    HDMI = 'hdmi'
 }
 export enum DeviceAction {
     UPDATE
