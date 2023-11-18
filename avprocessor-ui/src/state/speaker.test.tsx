@@ -135,14 +135,6 @@ describe("setSpeakerBase", () => {
 })
 
 describe("speakerReducer", () => {
-    it("sets config", () => {
-        const results = speakerReducer({
-            speakers: [],
-            speakerConfiguration: ""
-        }, { type: SpeakerAction.CONFIG, value: "3.2" })
-        expect(results.speakerConfiguration).toEqual("3.2")
-        expect(results.speakers).toEqual([])
-    })
     it("updates speaker", () => {
         const results = speakerReducer({
             speakers: [{
@@ -184,7 +176,7 @@ describe("speakerReducer", () => {
         }, {
             type: SpeakerAction.INIT, value: "3.2"
         })
-        expect(results.speakerConfiguration).toEqual("")//we don't actually set this at init
+        expect(results.speakerConfiguration).toEqual("3.2")
         expect(results.speakers).toEqual([{
             speaker: "Left",
             isSubwoofer: false,
@@ -234,7 +226,7 @@ describe("speakerReducer", () => {
         }, {
             type: SpeakerAction.INIT, value: "notvalid"
         })
-        expect(results.speakerConfiguration).toEqual("")//we don't actually set this at init
+        expect(results.speakerConfiguration).toEqual("notvalid")//we don't actually set this at init
         expect(results.speakers).toEqual([{
             speaker: "Subwoofer 2",
             isSubwoofer: true,

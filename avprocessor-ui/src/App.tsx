@@ -48,7 +48,7 @@ const App: React.FC = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const { versions: fetchedVersions, speakers, filters, appliedVersion, selectedDistance, device } = useRouteLoaderData(ROOT_ID) as VersionConfigurationPayload;
-  const { state: { speakerConfiguration }, dispatch: speakerDispatch } = useSpeaker()
+  const { dispatch: speakerDispatch } = useSpeaker()
   const { dispatch: versionDispatch } = useVersion()
   const { dispatch: filterDispatch } = useFilter()
   const { dispatch: delayDispatch } = useDelay()
@@ -90,11 +90,6 @@ const App: React.FC = () => {
       filterDispatch({ type: FilterAction.SET, value: filters })
     }
   }, [filters, filterDispatch])
-
-  useEffect(() => {
-    speakerDispatch({ type: SpeakerAction.INIT, value: speakerConfiguration })
-    filterDispatch({ type: FilterAction.INIT, value: speakerConfiguration })
-  }, [speakerConfiguration, speakerDispatch, filterDispatch])
 
   return (
     <Layout className="layout" style={{ minHeight: "100vh" }}>
