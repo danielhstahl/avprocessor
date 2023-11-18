@@ -44,25 +44,20 @@ The backend is a simple sqlite database.  There are five tables:
 
 The computation for delays are relatively straightforward.  The longest distance speaker is taken as having 0 delay, and all other speakers are delayed relative to that speaker so that the sound hits the listener from all speakers simultaneously. 
 
-# Alsa integration
-
-`avprocessor` is designed to be used with [alsa_cdsp](https://github.com/scripple/alsa_cdsp).  The `config_in` parameter must match the output path for `avprocessor`.  
-
 # Exact instructinos for RBPi on ubuntu server 23.10
 
 * sudo apt install libasound2-dev
-* sudo apt install alsa-utils make pkgconf build-essential python3-websockets
+* sudo apt install alsa-utils make pkgconf build-essential python3-websocket
 * mkdir ~/camilladsp ~/camilladsp/coeffs ~/camilladsp/configs
 * wget https://github.com/HEnquist/camilladsp/releases/download/v1.0.3/camilladsp-linux-aarch64.tar.gz -P ~/camilladsp/
 * tar -xvf ~/camilladsp/camilladsp-linux-aarch64.tar.gz -C ~/camilladsp/
 * cd camilladsp
 * rm camilladsp-linux-aarch64.tar.gz
-* git clone https://github.com/scripple/alsa_cdsp.git
-* cd alsa_cdsp
-* make 
-* sudo make install
-* cd ..
-* wget https://github.com/danielhstahl/avprocessor/releases/download/v0.0.11/avprocessor-aarch64-unknown-linux-gnu.tar.gz -P ~/camilladsp/
-* wget https://github.com/danielhstahl/avprocessor/releases/download/v0.0.11/avprocessor-ui.tar.gz -P ~/camilladsp/
+* wget https://github.com/danielhstahl/avprocessor/releases/download/v0.1.0/avprocessor-aarch64-unknown-linux-gnu.tar.gz -P ~/camilladsp/
+* wget https://github.com/danielhstahl/avprocessor/releases/download/v0.1.0/avprocessor-ui.tar.gz -P ~/camilladsp/
 * tar -xvf ~/camilladsp/avprocessor-aarch64-unknown-linux-gnu.tar.gz -C ~/camilladsp/
 * tar -xvf ~/camilladsp/avprocessor-ui.tar.gz -C ~/camilladsp/
+* ROCKET_DATABASES='{settings={url="settings.sqlite"}}' ROCKET_ADDRESS="0.0.0.0" ./avprocessor ./config_in.yaml ./build
+* `sudo apt install linux-modules-extra-raspi`
+* `sudo nano /etc/modules-load.d/snd-aloop.conf`, add "snd-aloop" to the file
+

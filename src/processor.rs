@@ -39,6 +39,7 @@ pub enum DeviceType {
     OktoDac8,
     ToppingDm7,
     MotuMk5,
+    HDMI,
 }
 
 #[derive(Serialize, Deserialize, sqlx::FromRow)]
