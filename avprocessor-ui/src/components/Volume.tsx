@@ -22,7 +22,6 @@ const VolumeCard = ({ wsPort }: VolumeInputs) => {
     const { sendJsonMessage, lastJsonMessage } = useWebSocket(socketUrl);
 
     useEffect(() => {
-        console.log("got here")
         if (lastJsonMessage) {
             if (lastJsonMessage.hasOwnProperty("GetVolume")) {
                 setVolume((lastJsonMessage as VolumeGet).GetVolume.value)
@@ -34,9 +33,6 @@ const VolumeCard = ({ wsPort }: VolumeInputs) => {
             sendJsonMessage("GetVolume");
         }, 3000)
     }, [sendJsonMessage])
-
-
-    console.log(lastJsonMessage)
 
     const onVolumeChange = (vol: number) => {
         setVolume(vol) //optimistic
