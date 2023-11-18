@@ -1,8 +1,12 @@
 import VolumeCard from "../components/Volume"
-const Home = () => <><p>
-    This will display information about sample rate, version numbers, device number
-</p>
-    <VolumeCard wsPort={1234} />
-</>
+import { Card, Space } from 'antd';
+const Home = () =>
+    <Space direction="vertical" size={16} style={{ marginTop: 20, width: '100%', justifyContent: 'center' }}>
+        <Card title="Volume" >
+            <VolumeCard wsPort={1234} />
+        </Card>
+
+    </Space>
+
 
 export default Home

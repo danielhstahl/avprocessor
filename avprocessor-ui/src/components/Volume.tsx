@@ -1,4 +1,4 @@
-import { Button, Slider, Progress, Row, Col } from 'antd';
+import { Button, Slider, Progress, Row, Col, Space } from 'antd';
 import { MinusOutlined, PlusOutlined } from '@ant-design/icons';
 import { useEffect, useState } from 'react';
 import useWebSocket from 'react-use-websocket';
@@ -14,6 +14,7 @@ type VolumeGet = {
 const MIN_VOLUME = -100
 const MAX_VOLUME = 0
 const VOLUME_STEP = 1
+const centerStyle = { width: '100%', justifyContent: 'center' }
 const convertTo100 = (volume: number) => 100 * ((volume - MIN_VOLUME) / (MAX_VOLUME - MIN_VOLUME))
 const VolumeCard = ({ wsPort }: VolumeInputs) => {
     const socketUrl = `ws://127.0.0.1:${wsPort}`
@@ -41,12 +42,26 @@ const VolumeCard = ({ wsPort }: VolumeInputs) => {
 
     return <Row align="middle" justify="center">
         <Col xs={24}>
-            <Button onClick={() => onVolumeChange(volume - VOLUME_STEP)} shape="circle" icon={<MinusOutlined />} />
-            <Slider value={volume} min={MIN_VOLUME} max={MAX_VOLUME} step={VOLUME_STEP} onChange={onVolumeChange} />
-            <Button onClick={() => onVolumeChange(volume + VOLUME_STEP)} shape="circle" icon={<PlusOutlined />} />
+            <Row justify="space-evenly">
+                <Col xs={2}>
+                    <Space direction="horizontal" style={centerStyle}>
+                        <Button onClick={() => onVolumeChange(volume - VOLUME_STEP)} shape="circle" icon={<MinusOutlined />} />
+                    </Space>
+                </Col>
+                <Col xs={20}>
+                    <Slider value={volume} min={MIN_VOLUME} max={MAX_VOLUME} step={VOLUME_STEP} onChange={onVolumeChange} />
+                </Col>
+                <Col xs={2}>
+                    <Space direction="horizontal" style={centerStyle}>
+                        <Button onClick={() => onVolumeChange(volume + VOLUME_STEP)} shape="circle" icon={<PlusOutlined />} />
+                    </Space>
+                </Col>
+            </Row>
         </Col>
         <Col xs={24}>
-            <Progress type="circle" format={() => volume} percent={convertTo100(volume)} />
+            <Space direction="horizontal" style={centerStyle}>
+                <Progress type="circle" format={() => volume} percent={convertTo100(volume)} />
+            </Space>
         </Col>
     </Row>
 }
