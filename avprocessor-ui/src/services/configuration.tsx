@@ -24,6 +24,7 @@ export function saveConfig(body: ConfigPayload): Promise<Version> {
         body: JSON.stringify(body)
     }).then(r => r.json())
 }
+
 export const applyConfig = (version: number) => fetch(`/config/apply/${version}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" }

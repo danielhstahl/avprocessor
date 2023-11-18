@@ -16,7 +16,7 @@ const MAX_VOLUME = 0
 const VOLUME_STEP = 1
 const convertTo100 = (volume: number) => 100 * ((volume - MIN_VOLUME) / (MAX_VOLUME - MIN_VOLUME))
 const VolumeCard = ({ wsPort }: VolumeInputs) => {
-    const socketUrl = `ws://127.0.0.1:${wsPort}`
+    const socketUrl = `ws://${window.location.host.split(":")[0]}:${wsPort}`
     const [volume, setVolume] = useState(0);
 
     const { sendJsonMessage, lastJsonMessage } = useWebSocket(socketUrl);
