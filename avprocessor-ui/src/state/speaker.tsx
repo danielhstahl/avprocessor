@@ -302,8 +302,6 @@ export enum SpeakerAction {
     UPDATE,
     INIT,
     SET,
-    CONFIG,
-    //UPDATE_DELAY
 }
 export type SpeakerDelay = {
     speaker: Speaker,
@@ -353,9 +351,6 @@ export const getSpeakerConfigurationFromSpeakers = (speakers: Speaker[]) => {
 
 export function speakerReducer(state: State, action: Action): State {
     switch (action.type) {
-        case SpeakerAction.CONFIG:
-            return { ...state, speakerConfiguration: action.value as string }
-
         case SpeakerAction.UPDATE:
             const speaker = action.value as Speaker
             return {
@@ -363,17 +358,19 @@ export function speakerReducer(state: State, action: Action): State {
                 speakers: state.speakers.map(v => v.speaker === speaker.speaker ? speaker : v)
             }
 
-        case SpeakerAction.INIT:
+        case SpeakerAction.INIT: //should only be called if speaker configuration is changed, I think
             const speakerConfiguration = action.value as string
             return {
-                ...state,
+                speakerConfiguration,
                 speakers: setSpeakerBase(state.speakers, speakerConfiguration) || state.speakers
             }
         case SpeakerAction.SET:
             const speakers = action.value as Speaker[]
+            const speakerConfig = getSpeakerConfigurationFromSpeakers(speakers)
             return {
-                speakers: speakers,
-                speakerConfiguration: getSpeakerConfigurationFromSpeakers(speakers)
+                speakerConfiguration: speakerConfig,
+                speakers: setSpeakerBase(speakers, speakerConfig) || state.speakers,
+
             }
         default:
             return state

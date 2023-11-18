@@ -128,7 +128,6 @@ const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationPro
                 <Select
                     value={speakerConfiguration}
                     onChange={v => {
-                        speakerDispatch({ type: SpeakerAction.CONFIG, value: v })
                         speakerDispatch({ type: SpeakerAction.INIT, value: v })
                         filterDispatch({ type: FilterAction.INIT, value: v })
                     }}
