@@ -61,5 +61,5 @@ The computation for delays are relatively straightforward.  The longest distance
 * `sudo apt install linux-modules-extra-raspi`
 * `sudo nano /etc/modules-load.d/snd-aloop.conf`, add "snd-aloop" to the file
 
-* Create services in systemctl for both camilla and avprocessor, see (examples)[./example-systemctl]
+* Create services in systemctl for both camilla and avprocessor, see [examples](./example-systemctl).
 
