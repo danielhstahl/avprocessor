@@ -1,5 +1,5 @@
-# put this file in /lib/systemd/system/avprocessor.service
-# `sudo systemctl enable avprocessor`
+# put this file in /lib/systemd/system/camilladsp.service
+# `sudo systemctl enable camilladsp`
 # replace "username" with your username
 # the config argument to camilladsp must be the same as the config file argument to avprocessor
 
