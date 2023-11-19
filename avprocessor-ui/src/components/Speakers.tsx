@@ -9,6 +9,7 @@ type PartialProps = {
     speaker: Speaker,
     updateSpeaker: (speaker: Speaker) => void
 }
+const DEFAULT_CROSSOVER = 80
 const CrossoverAction = ({ speaker, updateSpeaker }: PartialProps) => {
     return <Row align="middle" justify="center">
         <Col xs={0} md={9}>
@@ -18,7 +19,7 @@ const CrossoverAction = ({ speaker, updateSpeaker }: PartialProps) => {
             <Text style={textStyle} ellipsis={true}>Xover:</Text>
         </Col>
         <Col xs={5}>
-            <Switch checked={speaker.crossover !== null} onChange={v => updateSpeaker({ ...speaker, crossover: v ? 0 : null })} />
+            <Switch checked={speaker.crossover !== null} onChange={v => updateSpeaker({ ...speaker, crossover: v ? DEFAULT_CROSSOVER : null })} />
         </Col>
         <Col xs={10}>
             <InputNumber
