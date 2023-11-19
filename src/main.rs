@@ -493,6 +493,16 @@ async fn apply_config_version(
     let config = convert_processor_settings_to_camilla(&settings)
         .map_err(|e| BadRequest(Some(e.to_string())))?;
 
+    let config_as_yaml =
+        serde_yaml::to_string(&config).map_err(|e| BadRequest(Some(e.to_string())))?;
+
+    // writes to the camilla settings file, so on restart camilla starts with the right config
+    fs::write(
+        camilla_settings.config_file_location.as_str(),
+        config_as_yaml.as_bytes(),
+    )
+    .map_err(|e| BadRequest(Some(e.to_string())))?;
+
     let config_as_str = json::to_string(&config).map_err(|e| BadRequest(Some(e.to_string())))?;
 
     let ws_url =
@@ -505,16 +515,6 @@ async fn apply_config_version(
     socket
         .send(Message::Text(config_as_json))
         .map_err(|e| BadRequest(Some(e.to_string())))?;
-
-    let config_as_yaml =
-        serde_yaml::to_string(&config).map_err(|e| BadRequest(Some(e.to_string())))?;
-
-    // writes to the alsa "in" file
-    fs::write(
-        camilla_settings.config_file_location.as_str(),
-        config_as_yaml.as_bytes(),
-    )
-    .map_err(|e| BadRequest(Some(e.to_string())))?;
 
     let _ = sqlx::query!("DELETE from applied_version")
         .execute(&mut *db)
