@@ -6,24 +6,37 @@ use crate::processor::{Filter, Speaker};
 use rocket::serde::Serialize;
 use std::collections::BTreeMap;
 
-pub fn create_per_speaker_pipeline(
+pub fn create_per_speaker_pipeline_no_mixer(
     speakers: &[Speaker],
     peq_filters: &BTreeMap<&String, Vec<(usize, &Filter)>>,
 ) -> Vec<Pipeline> {
-    speakers
+    let mut hold_speakers: BTreeMap<&String, (usize, Vec<usize>)> = BTreeMap::new();
+    for (index, s) in speakers.iter().enumerate() {
+        hold_speakers
+            .entry(&s.speaker)
+            .and_modify(|v| v.0 = index)
+            .or_insert((index, vec![]));
+    }
+    create_per_speaker_pipeline(&hold_speakers, peq_filters)
+}
+
+pub fn create_per_speaker_pipeline(
+    output_channel_mapping: &BTreeMap<&String, (usize, Vec<usize>)>,
+    peq_filters: &BTreeMap<&String, Vec<(usize, &Filter)>>,
+) -> Vec<Pipeline> {
+    output_channel_mapping
         .iter()
-        .enumerate()
-        .map(|(i, s)| {
+        .map(|(speaker, (i, _))| {
             Pipeline::Filter(PipelineFilter {
                 pipeline_type: PipelineType::Filter,
-                channel: i,
+                channel: *i,
                 names: peq_filters
-                    .get(&s.speaker)
+                    .get(speaker)
                     .unwrap_or(&vec![])
                     .iter()
-                    .map(|(index, _)| peq_filter_name(&s.speaker, *index))
-                    .chain(std::iter::once(delay_filter_name(&s.speaker)))
-                    .chain(std::iter::once(gain_filter_name(&s.speaker)))
+                    .map(|(index, _)| peq_filter_name(&speaker, *index))
+                    .chain(std::iter::once(delay_filter_name(&speaker)))
+                    .chain(std::iter::once(gain_filter_name(&speaker)))
                     .chain(std::iter::once(volume_filter_name()))
                     .collect(),
             })
@@ -106,6 +119,7 @@ pub enum Pipeline {
 mod tests {
     use super::{create_crossover_pipeline, create_per_speaker_pipeline, Pipeline};
     use crate::filters::compute_peq_filter;
+    use crate::pipeline::create_per_speaker_pipeline_no_mixer;
     use crate::processor::{Filter, Speaker};
     use std::collections::BTreeMap;
     #[test]
@@ -129,6 +143,77 @@ mod tests {
     }
     #[test]
     fn check_create_per_speaker_pipeline() {
+        let mut output_channel_mapping: BTreeMap<&String, (usize, Vec<usize>)> = BTreeMap::new();
+        let l = "l".to_string();
+        let r = "r".to_string();
+        let c = "c".to_string();
+        let sub1: String = "sub1".to_string();
+        output_channel_mapping.insert(&l, (0, vec![0, 1]));
+        output_channel_mapping.insert(&r, (1, vec![2, 3]));
+        output_channel_mapping.insert(&c, (2, vec![4, 5]));
+        output_channel_mapping.insert(&sub1, (3, vec![6]));
+        let filters = vec![
+            Filter {
+                freq: 1000,
+                gain: 2.0,
+                q: 0.707,
+                speaker: "l".to_string(),
+            },
+            Filter {
+                freq: 2000,
+                gain: 2.0,
+                q: 0.707,
+                speaker: "l".to_string(),
+            },
+            Filter {
+                freq: 2000,
+                gain: 1.0,
+                q: 0.707,
+                speaker: "r".to_string(),
+            },
+        ];
+        let result =
+            create_per_speaker_pipeline(&output_channel_mapping, &compute_peq_filter(&filters));
+        assert!(result.len() == 4);
+        match &result[1] {
+            //left, keys are alphabetized
+            Pipeline::Filter(f) => {
+                assert!(f.names.len() == 5); //2 peq, 1 gain, 1 delay, 1 volume
+            }
+            Pipeline::Mixer(_) => {
+                assert!(false); //should not get here
+            }
+        }
+        match &result[0] {
+            //center, keys are alphabetized
+            Pipeline::Filter(f) => {
+                assert!(f.names.len() == 3); //1 gain, 1 delay, 1 volume
+            }
+            Pipeline::Mixer(_) => {
+                assert!(false); //should not get here
+            }
+        }
+        match &result[2] {
+            //right, keys are alphabetized
+            Pipeline::Filter(f) => {
+                assert!(f.names.len() == 4); //1peq, 1 gain, 1 delay, 1 volume
+            }
+            Pipeline::Mixer(_) => {
+                assert!(false); //should not get here
+            }
+        }
+        match &result[3] {
+            //sub, keys are alphabetized
+            Pipeline::Filter(f) => {
+                assert!(f.names.len() == 3); //1 gain, 1 delay, 1 volume
+            }
+            Pipeline::Mixer(_) => {
+                assert!(false); //should not get here
+            }
+        }
+    }
+    #[test]
+    fn check_create_per_speaker_pipeline_no_mixer() {
         let speakers = vec![
             Speaker {
                 speaker: "l".to_string(),
@@ -179,9 +264,10 @@ mod tests {
                 speaker: "r".to_string(),
             },
         ];
-        let result = create_per_speaker_pipeline(&speakers, &compute_peq_filter(&filters));
+        let result = create_per_speaker_pipeline_no_mixer(&speakers, &compute_peq_filter(&filters));
         assert!(result.len() == 4);
-        match &result[0] {
+        match &result[1] {
+            //left, keys are alphabetized
             Pipeline::Filter(f) => {
                 assert!(f.names.len() == 5); //2 peq, 1 gain, 1 delay, 1 volume
             }
@@ -189,7 +275,8 @@ mod tests {
                 assert!(false); //should not get here
             }
         }
-        match &result[1] {
+        match &result[0] {
+            //center, keys are alphabetized
             Pipeline::Filter(f) => {
                 assert!(f.names.len() == 3); //1 gain, 1 delay, 1 volume
             }
@@ -198,6 +285,7 @@ mod tests {
             }
         }
         match &result[2] {
+            //right, keys are alphabetized
             Pipeline::Filter(f) => {
                 assert!(f.names.len() == 4); //1peq, 1 gain, 1 delay, 1 volume
             }
@@ -206,6 +294,7 @@ mod tests {
             }
         }
         match &result[3] {
+            //sub, keys are alphabetized
             Pipeline::Filter(f) => {
                 assert!(f.names.len() == 3); //1 gain, 1 delay, 1 volume
             }

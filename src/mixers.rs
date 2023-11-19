@@ -105,15 +105,10 @@ pub fn split_inputs<'a>(
 
         let mut track_index = 0;
 
-        let subs: Vec<_> = speakers
-            .iter()
-            .enumerate()
-            .filter(|(_, v)| v.is_subwoofer)
-            .collect();
+        let subs: Vec<_> = speakers.iter().filter(|v| v.is_subwoofer).collect();
 
         //channel_mapping.
-        for (speaker_index, speaker) in speakers.iter().enumerate().filter(|(_, v)| !v.is_subwoofer)
-        {
+        for (speaker_index, speaker) in speakers.iter().filter(|v| !v.is_subwoofer).enumerate() {
             if speaker.crossover.is_some() {
                 input_channel_mapping.insert(
                     &speaker.speaker,
@@ -125,11 +120,11 @@ pub fn split_inputs<'a>(
                     ),
                 );
 
-                for (sub_index, sub_name) in subs.iter() {
+                for (sub_index, sub_name) in subs.iter().enumerate() {
                     output_channel_mapping
                         .entry(&sub_name.speaker)
                         .and_modify(|(_, v)| v.push(track_index + 1))
-                        .or_insert((*sub_index, vec![track_index + 1]));
+                        .or_insert((sub_index + speakers_exclude_sub, vec![track_index + 1]));
                 }
                 output_channel_mapping.insert(&speaker.speaker, (speaker_index, vec![track_index]));
                 track_index += 2;
@@ -152,11 +147,11 @@ pub fn split_inputs<'a>(
                 &speaker,
                 (false, true, speakers_exclude_sub + index, vec![track_index]),
             );
-            for (sub_index, sub_name) in subs.iter() {
+            for (sub_index, sub_name) in subs.iter().enumerate() {
                 output_channel_mapping
                     .entry(&sub_name.speaker)
                     .and_modify(|(_, v)| v.push(track_index))
-                    .or_insert((*sub_index, vec![track_index]));
+                    .or_insert((sub_index + speakers_exclude_sub, vec![track_index]));
             }
             track_index += 1;
         }
