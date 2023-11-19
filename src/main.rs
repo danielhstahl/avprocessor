@@ -82,6 +82,11 @@ struct ConfigurationMapping<'a> {
     speaker_counts: SpeakerCounts,
 }
 
+struct CamillaSettings {
+    websocket_url: String,
+    config_file_location: String,
+}
+
 /// runs on every startup, idempotent table creation
 async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
     if let Some(db) = Settings::fetch(&rocket) {
@@ -472,8 +477,7 @@ async fn config_version(
 async fn apply_config_version(
     mut db: Connection<Settings>,
     version: i32,
-    camilla_dsp_url: &State<String>,
-    comilla_dsp_config: &State<String>,
+    camilla_settings: &State<CamillaSettings>,
 ) -> Result<(), BadRequest<String>> {
     let settings = get_config_for_camilla_from_db(&mut db, version)
         .await
@@ -483,7 +487,8 @@ async fn apply_config_version(
 
     let config_as_str = json::to_string(&config).map_err(|e| BadRequest(Some(e.to_string())))?;
 
-    let ws_url = Url::parse(camilla_dsp_url).map_err(|e| BadRequest(Some(e.to_string())))?;
+    let ws_url =
+        Url::parse(&camilla_settings.websocket_url).map_err(|e| BadRequest(Some(e.to_string())))?;
     let (mut socket, _response) = connect(ws_url).map_err(|e| BadRequest(Some(e.to_string())))?;
     let config_as_json = json::to_string(&SetConfig {
         set_config_json: config_as_str,
@@ -497,8 +502,11 @@ async fn apply_config_version(
         serde_yaml::to_string(&config).map_err(|e| BadRequest(Some(e.to_string())))?;
 
     // writes to the alsa "in" file
-    fs::write(comilla_dsp_config.as_str(), config_as_yaml.as_bytes())
-        .map_err(|e| BadRequest(Some(e.to_string())))?;
+    fs::write(
+        camilla_settings.config_file_location.as_str(),
+        config_as_yaml.as_bytes(),
+    )
+    .map_err(|e| BadRequest(Some(e.to_string())))?;
 
     let _ = sqlx::query!("DELETE from applied_version")
         .execute(&mut *db)
@@ -623,18 +631,21 @@ fn rocket() -> _ {
     args.next(); //first item is the app name, skip it
 
     //Websocket URL
-    let camilla_dsp_url = args.next().unwrap_or("ws://127.0.0.1:1234".to_string());
+    let websocket_url = args.next().unwrap_or("ws://127.0.0.1:1234".to_string());
 
     //Location of configuration Yaml so on a camilla restart it keeps values
-    let comilla_dsp_config = args.next().unwrap_or("./config.yaml".to_string());
+    let config_file_location = args.next().unwrap_or("./config.yaml".to_string());
 
+    let camilla_settings = CamillaSettings {
+        config_file_location,
+        websocket_url,
+    };
     let html_files = args
         .next()
         .unwrap_or(relative!("avprocessor-ui/build").to_string());
     rocket::build()
         .mount("/", FileServer::from(html_files))
-        .manage(camilla_dsp_url)
-        .manage(comilla_dsp_config)
+        .manage(camilla_settings)
         .attach(Settings::init())
         .attach(AdHoc::try_on_ignite("DB Migrations", run_migrations))
         .mount(
