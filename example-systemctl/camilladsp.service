@@ -1,0 +1,25 @@
+# put this file in /lib/systemd/system/avprocessor.service
+# `sudo systemctl enable avprocessor`
+# replace "username" with your username
+# the config argument to camilladsp must be the same as the config file argument to avprocessor
+
+[Unit]
+After=syslog.target
+StartLimitIntervalSec=10
+StartLimitBurst=10
+
+[Service]
+Type=simple
+ExecStart=/home/username/camilladsp/camilladsp -o /home/username/camilladsp/camilladsp.log -p 1234 /home/username/camilladsp/config.yaml --address 0.0.0.0
+Restart=always
+RestartSec=1
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=camilladsp
+User=root
+Group=root
+CPUSchedulingPolicy=fifo
+CPUSchedulingPriority=10
+
+[Install]
+WantedBy=multi-user.target

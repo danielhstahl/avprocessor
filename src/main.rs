@@ -9,6 +9,9 @@ use rocket::{Build, Rocket, State};
 use rocket_db_pools::sqlx::{self};
 use rocket_db_pools::{Connection, Database};
 use std::collections::BTreeMap;
+use std::fs;
+use tungstenite::{connect, Message};
+use url::Url;
 
 mod devices;
 mod filters;
@@ -463,9 +466,6 @@ async fn config_version(
         .map_err(|e| BadRequest(Some(e.to_string())))
 }
 
-use tungstenite::{connect, Message};
-use url::Url;
-
 #[post("/config/apply/<version>", format = "application/json")]
 /// Configurations can be saved without actually be implemented or applied to camilla.  
 /// This endpoint applies the selected version to camilla
@@ -473,6 +473,7 @@ async fn apply_config_version(
     mut db: Connection<Settings>,
     version: i32,
     camilla_dsp_url: &State<String>,
+    comilla_dsp_config: &State<String>,
 ) -> Result<(), BadRequest<String>> {
     let settings = get_config_for_camilla_from_db(&mut db, version)
         .await
@@ -490,6 +491,13 @@ async fn apply_config_version(
     .map_err(|e| BadRequest(Some(e.to_string())))?;
     socket
         .send(Message::Text(config_as_json))
+        .map_err(|e| BadRequest(Some(e.to_string())))?;
+
+    let config_as_yaml =
+        serde_yaml::to_string(&config).map_err(|e| BadRequest(Some(e.to_string())))?;
+
+    // writes to the alsa "in" file
+    fs::write(comilla_dsp_config.as_str(), config_as_yaml.as_bytes())
         .map_err(|e| BadRequest(Some(e.to_string())))?;
 
     let _ = sqlx::query!("DELETE from applied_version")
@@ -613,13 +621,20 @@ async fn delete_configuration(
 fn rocket() -> _ {
     let mut args = std::env::args();
     args.next(); //first item is the app name, skip it
+
+    //Websocket URL
     let camilla_dsp_url = args.next().unwrap_or("ws://127.0.0.1:1234".to_string());
+
+    //Location of configuration Yaml so on a camilla restart it keeps values
+    let comilla_dsp_config = args.next().unwrap_or("./config.yaml".to_string());
+
     let html_files = args
         .next()
         .unwrap_or(relative!("avprocessor-ui/build").to_string());
     rocket::build()
         .mount("/", FileServer::from(html_files))
         .manage(camilla_dsp_url)
+        .manage(comilla_dsp_config)
         .attach(Settings::init())
         .attach(AdHoc::try_on_ignite("DB Migrations", run_migrations))
         .mount(

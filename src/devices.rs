@@ -35,7 +35,7 @@ impl Devices {
     pub fn okto_dac8(input_channels: usize, output_channels: usize) -> Self {
         Self {
             samplerate: 96000, //high sample rate; should be transparent
-            chunksize: 1024,
+            chunksize: 2048,
             queuelimit: 1,
             capture: CaptureConfig {
                 device_type: "Alsa".to_string(),
@@ -55,7 +55,7 @@ impl Devices {
     pub fn hdmi(input_channels: usize, output_channels: usize) -> Self {
         Self {
             samplerate: 96000, //high sample rate; should be transparent
-            chunksize: 1024,
+            chunksize: 2048,
             queuelimit: 1,
             capture: CaptureConfig {
                 device_type: "Alsa".to_string(),
@@ -75,7 +75,7 @@ impl Devices {
     pub fn topping_dm7(input_channels: usize, output_channels: usize) -> Self {
         Self {
             samplerate: 96000, //high sample rate; should be transparent
-            chunksize: 1024,
+            chunksize: 2048,
             queuelimit: 1,
             capture: CaptureConfig {
                 device_type: "Alsa".to_string(),
@@ -94,7 +94,7 @@ impl Devices {
     pub fn motu_mk5(input_channels: usize, output_channels: usize) -> Self {
         Self {
             samplerate: 96000, //high sample rate; should be transparent
-            chunksize: 1024,
+            chunksize: 2048,
             queuelimit: 1,
             capture: CaptureConfig {
                 device_type: "Alsa".to_string(),
