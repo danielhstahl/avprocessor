@@ -1,0 +1,19 @@
+## Basic config to start with; this will get overwritten 
+## and never used again after the initial 
+## "apply configuration".  The capture and playback
+## devices may need to be updated initially in order for 
+## camilla to start
+---
+devices:
+  samplerate: 96000
+  chunksize: 2048
+  capture:
+    type: Alsa
+    channels: 2
+    device: "hw:Loopback,1"
+    format: S16LE
+  playback:
+    type: Alsa
+    channels: 2
+    device: "hw:0,0"
+    format: S16LE
