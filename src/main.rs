@@ -497,6 +497,7 @@ async fn apply_config_version(
         serde_yaml::to_string(&config).map_err(|e| BadRequest(Some(e.to_string())))?;
 
     // writes to the camilla settings file, so on restart camilla starts with the right config
+    // NOT NEEDED when camilla 2.0 comes out, as it saves its own configuration on restart
     fs::write(
         camilla_settings.config_file_location.as_str(),
         config_as_yaml.as_bytes(),
