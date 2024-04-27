@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT \n        speaker, \n        crossover as \"crossover?: i32\", \n        distance as \"distance: f32\", \n        gain as \"gain: f32\", \n        is_subwoofer as \"is_subwoofer: bool\"\n        from speakers_settings_for_ui where version=?",
+  "describe": {
+    "columns": [
+      {
+        "name": "speaker",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "crossover?: i32",
+        "ordinal": 1,
+        "type_info": "Int64"
+      },
+      {
+        "name": "distance: f32",
+        "ordinal": 2,
+        "type_info": "Float"
+      },
+      {
+        "name": "gain: f32",
+        "ordinal": 3,
+        "type_info": "Float"
+      },
+      {
+        "name": "is_subwoofer: bool",
+        "ordinal": 4,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "2b961148b57c7f7579d89eea39492f17bd495a9e7c1b4b28a63ddc0d0080f0d9"
+}

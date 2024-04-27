@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO speakers_settings_for_ui (\n            version, \n            speaker, \n            crossover, \n            distance, \n            gain, \n            is_subwoofer\n        ) VALUES (?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "ad52a3310bf8f5538aa81f2294b6c40f5c655340e9c7798fda1ed1c7b8387752"
+}

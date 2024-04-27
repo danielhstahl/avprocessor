@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO versions (\n            version_date, selected_distance, device\n        ) VALUES (?, ?, ?) RETURNING version as \"version: i32\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "version: i32",
+        "ordinal": 0,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "3aa8bf755a5db9f453b5e1e01529c64b398aacd44d51d1471aec38de84959ec2"
+}

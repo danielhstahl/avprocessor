@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT max(version) as \"version!: i32\"  from versions",
+  "describe": {
+    "columns": [
+      {
+        "name": "version!: i32",
+        "ordinal": 0,
+        "type_info": "Int"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "73dcb28485c5c178d8c752e328307e639aa7ecb342f508fcc3daebf5b988ba4e"
+}
