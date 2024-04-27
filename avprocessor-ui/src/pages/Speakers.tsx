@@ -67,7 +67,6 @@ const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationPro
     const { state: { versions, selectedVersion }, dispatch: versionDispatch } = useVersion()
     const { state: { delayType }, dispatch: delayDispatch } = useDelay()
     const { state: { deviceType }, dispatch: deviceDispatch } = useDevice()
-    console.log(speakerFilters)
     const [messageApi, contextHolder] = message.useMessage()
 
     const saveSuccess = () => {
@@ -103,7 +102,6 @@ const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationPro
         getConfigurationProp(version).then(({ filters, speakers, selectedDistance, device }) => {
             if (speakers && speakers.length > 0) {
                 speakerDispatch({ type: SpeakerAction.SET, value: speakers })
-                //hmm, but what if version has a different speakerConfiguration?
                 filterDispatch({ type: FilterAction.SET, value: filters })
                 delayDispatch({ type: DelayAction.UPDATE, value: selectedDistance })
                 deviceDispatch({ type: DeviceAction.UPDATE, value: device })
