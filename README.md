@@ -53,7 +53,7 @@ The computation for delays are relatively straightforward.  The longest distance
 * tar -xvf ~/camilladsp/camilladsp-linux-aarch64.tar.gz -C ~/camilladsp/
 * cd camilladsp
 * rm camilladsp-linux-aarch64.tar.gz
-* wget https://github.com/danielhstahl/avprocessor/releases/download/v0.2.2/avprocessor-aarch64-unknown-linux-gnu.tar.gz -P ~/camilladsp/
+* wget https://github.com/danielhstahl/avprocessor/releases/download/v0.2.3/avprocessor-aarch64-unknown-linux-gnu.tar.gz -P ~/camilladsp/
 * wget https://github.com/danielhstahl/avprocessor/releases/download/v0.2.2/avprocessor-ui.tar.gz -P ~/camilladsp/
 * tar -xvf ~/camilladsp/avprocessor-aarch64-unknown-linux-gnu.tar.gz -C ~/camilladsp/
 * tar -xvf ~/camilladsp/avprocessor-ui.tar.gz -C ~/camilladsp/

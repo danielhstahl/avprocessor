@@ -249,9 +249,9 @@ fn convert_processor_settings_to_camilla(
 
 /// reads selected distance type (MS, FEET, METERS) for the specific configration version
 async fn get_selected_distance_and_device(
-    db: &mut Connection<Settings>,
+    mut db: Connection<Settings>,
     version: i32,
-) -> Result<SelectedDistanceAndDevice, sqlx::Error> {
+) -> Result<(SelectedDistanceAndDevice, Connection<Settings>), sqlx::Error> {
     let selected_distance_and_device = sqlx::query_as!(
         SelectedDistanceAndDevice,
         r#"SELECT 
@@ -262,14 +262,14 @@ async fn get_selected_distance_and_device(
     )
     .fetch_one(&mut **db)
     .await?;
-    Ok(selected_distance_and_device)
+    Ok((selected_distance_and_device, db))
 }
 
 /// reads filters for the specific configration version
 async fn get_filters(
-    db: &mut Connection<Settings>,
+    mut db: Connection<Settings>,
     version: i32,
-) -> Result<Vec<Filter>, sqlx::Error> {
+) -> Result<(Vec<Filter>, Connection<Settings>), sqlx::Error> {
     let filters = sqlx::query_as!(
         Filter,
         r#"SELECT speaker, 
@@ -281,14 +281,14 @@ async fn get_filters(
     )
     .fetch_all(&mut **db)
     .await?;
-    Ok(filters)
+    Ok((filters, db))
 }
 
 /// reads speakers that map to camilla speakers for the specific configration version
 async fn get_speakers_for_camilla(
-    db: &mut Connection<Settings>,
+    mut db: Connection<Settings>,
     version: i32,
-) -> Result<Vec<Speaker>, sqlx::Error> {
+) -> Result<(Vec<Speaker>, Connection<Settings>), sqlx::Error> {
     let speakers = sqlx::query_as!(
         Speaker,
         r#"SELECT 
@@ -302,12 +302,12 @@ async fn get_speakers_for_camilla(
     )
     .fetch_all(&mut **db)
     .await?;
-    Ok(speakers)
+    Ok((speakers, db))
 }
 
 /// reads speakers that map to the UI for the specific configration version
 async fn get_speakers_for_ui(
-    db: &mut Connection<Settings>,
+    mut db: Connection<Settings>,
     version: i32,
 ) -> Result<Vec<SpeakerForUI>, sqlx::Error> {
     let speakers = sqlx::query_as!(
@@ -329,33 +329,42 @@ async fn get_speakers_for_ui(
 
 /// gets configuration for camilla from database
 async fn get_config_for_camilla_from_db(
-    db: &mut Connection<Settings>,
+    db: Connection<Settings>,
     version: i32,
-) -> Result<ProcessorSettingsForCamilla, sqlx::Error> {
-    let SelectedDistanceAndDevice {
-        selected_distance,
-        device,
-    } = get_selected_distance_and_device(db, version).await?;
-    let filters = get_filters(db, version).await?;
-    let speakers = get_speakers_for_camilla(db, version).await?;
-    Ok(ProcessorSettingsForCamilla {
-        filters,
-        speakers,
-        selected_distance,
-        device,
-    })
+) -> Result<(ProcessorSettingsForCamilla, Connection<Settings>), sqlx::Error> {
+    let (
+        SelectedDistanceAndDevice {
+            selected_distance,
+            device,
+        },
+        db,
+    ) = get_selected_distance_and_device(db, version).await?;
+    let (filters, db) = get_filters(db, version).await?;
+    let (speakers, db) = get_speakers_for_camilla(db, version).await?;
+    Ok((
+        ProcessorSettingsForCamilla {
+            filters,
+            speakers,
+            selected_distance,
+            device,
+        },
+        db,
+    ))
 }
 
 /// gets configuration for UI from database
 async fn get_config_from_db(
-    db: &mut Connection<Settings>,
+    db: Connection<Settings>,
     version: i32,
 ) -> Result<ProcessorSettings, sqlx::Error> {
-    let SelectedDistanceAndDevice {
-        selected_distance,
-        device,
-    } = get_selected_distance_and_device(db, version).await?;
-    let filters = get_filters(db, version).await?;
+    let (
+        SelectedDistanceAndDevice {
+            selected_distance,
+            device,
+        },
+        db,
+    ) = get_selected_distance_and_device(db, version).await?;
+    let (filters, db) = get_filters(db, version).await?;
     let speakers = get_speakers_for_ui(db, version).await?;
     Ok(ProcessorSettings {
         filters,
@@ -445,9 +454,9 @@ async fn get_versions(
         on t1.version=t2.version
         "#,
     )
-    .fetch_all(&mut *db)
+    .fetch_all(&mut **db)
     .await
-    .map_err(|e| BadRequest(Some(e.to_string())))?;
+    .map_err(|e| BadRequest(e.to_string()))?;
 
     Ok(Json(versions))
 }
@@ -459,42 +468,41 @@ async fn config_latest(
         ConfigVersion,
         r#"SELECT max(version) as "version!: i32"  from versions"#
     )
-    .fetch_one(&mut *db)
+    .fetch_one(&mut **db)
     .await
-    .map_err(|e| BadRequest(Some(e.to_string())))?;
-    get_config_from_db(&mut db, version)
+    .map_err(|e| BadRequest(e.to_string()))?;
+    get_config_from_db(db, version)
         .await
         .map(|v| Json(v))
-        .map_err(|e| BadRequest(Some(e.to_string())))
+        .map_err(|e| BadRequest(e.to_string()))
 }
 
 #[get("/config/<version>")]
 async fn config_version(
-    mut db: Connection<Settings>,
+    db: Connection<Settings>,
     version: i32,
 ) -> Result<Json<ProcessorSettings>, BadRequest<String>> {
-    get_config_from_db(&mut db, version)
+    get_config_from_db(db, version)
         .await
         .map(|v| Json(v))
-        .map_err(|e| BadRequest(Some(e.to_string())))
+        .map_err(|e| BadRequest(e.to_string()))
 }
 
 #[post("/config/apply/<version>", format = "application/json")]
 /// Configurations can be saved without actually be implemented or applied to camilla.  
 /// This endpoint applies the selected version to camilla
 async fn apply_config_version(
-    mut db: Connection<Settings>,
+    db: Connection<Settings>,
     version: i32,
     camilla_settings: &State<CamillaSettings>,
 ) -> Result<(), BadRequest<String>> {
-    let settings = get_config_for_camilla_from_db(&mut db, version)
+    let (settings, mut db) = get_config_for_camilla_from_db(db, version)
         .await
-        .map_err(|e| BadRequest(Some(e.to_string())))?;
-    let config = convert_processor_settings_to_camilla(&settings)
-        .map_err(|e| BadRequest(Some(e.to_string())))?;
+        .map_err(|e| BadRequest(e.to_string()))?;
+    let config =
+        convert_processor_settings_to_camilla(&settings).map_err(|e| BadRequest(e.to_string()))?;
 
-    let config_as_yaml =
-        serde_yaml::to_string(&config).map_err(|e| BadRequest(Some(e.to_string())))?;
+    let config_as_yaml = serde_yaml::to_string(&config).map_err(|e| BadRequest(e.to_string()))?;
 
     // writes to the camilla settings file, so on restart camilla starts with the right config
     // NOT NEEDED when camilla 2.0 comes out, as it saves its own configuration on restart
@@ -502,29 +510,29 @@ async fn apply_config_version(
         camilla_settings.config_file_location.as_str(),
         config_as_yaml.as_bytes(),
     )
-    .map_err(|e| BadRequest(Some(e.to_string())))?;
+    .map_err(|e| BadRequest(e.to_string()))?;
 
-    let config_as_str = json::to_string(&config).map_err(|e| BadRequest(Some(e.to_string())))?;
+    let config_as_str = json::to_string(&config).map_err(|e| BadRequest(e.to_string()))?;
 
     let ws_url =
-        Url::parse(&camilla_settings.websocket_url).map_err(|e| BadRequest(Some(e.to_string())))?;
-    let (mut socket, _response) = connect(ws_url).map_err(|e| BadRequest(Some(e.to_string())))?;
+        Url::parse(&camilla_settings.websocket_url).map_err(|e| BadRequest(e.to_string()))?;
+    let (mut socket, _response) = connect(ws_url).map_err(|e| BadRequest(e.to_string()))?;
     let config_as_json = json::to_string(&SetConfig {
         set_config_json: config_as_str,
     })
-    .map_err(|e| BadRequest(Some(e.to_string())))?;
+    .map_err(|e| BadRequest(e.to_string()))?;
     socket
         .send(Message::Text(config_as_json))
-        .map_err(|e| BadRequest(Some(e.to_string())))?;
+        .map_err(|e| BadRequest(e.to_string()))?;
 
     let _ = sqlx::query!("DELETE from applied_version")
-        .execute(&mut *db)
+        .execute(&mut **db)
         .await
-        .map_err(|e| BadRequest(Some(e.to_string())))?;
+        .map_err(|e| BadRequest(e.to_string()))?;
     let _ = sqlx::query!("INSERT INTO applied_version (version) VALUES (?)", version)
-        .execute(&mut *db)
+        .execute(&mut **db)
         .await
-        .map_err(|e| BadRequest(Some(e.to_string())))?;
+        .map_err(|e| BadRequest(e.to_string()))?;
 
     Ok(())
 }
@@ -546,9 +554,9 @@ async fn write_configuration(
         settings.selected_distance,
         settings.device
     )
-    .fetch_one(&mut *db)
+    .fetch_one(&mut **db)
     .await
-    .map_err(|e| BadRequest(Some(e.to_string())))?;
+    .map_err(|e| BadRequest(e.to_string()))?;
 
     for (index, filter) in settings.filters.iter().enumerate() {
         let index_i32 = index as i32;
@@ -556,7 +564,7 @@ async fn write_configuration(
             "INSERT INTO filters (version, filter_index, speaker, freq, gain, q) VALUES (?, ?, ?, ?, ?, ?)",
             version, index_i32, filter.speaker, filter.freq, filter.gain, filter.q
         )
-        .execute(&mut *db)
+        .execute(&mut **db)
         .await;
     }
     for speaker in settings.speakers.iter() {
@@ -576,7 +584,7 @@ async fn write_configuration(
             speaker.gain,
             speaker.is_subwoofer
         )
-        .execute(&mut *db)
+        .execute(&mut **db)
         .await;
     }
     let speakers = update_speaker_delays(&settings.selected_distance, &settings.speakers);
@@ -597,7 +605,7 @@ async fn write_configuration(
             speaker.gain,
             speaker.is_subwoofer
         )
-        .execute(&mut *db)
+        .execute(&mut **db)
         .await;
     }
     Ok(Json(Version {
@@ -613,23 +621,23 @@ async fn delete_configuration(
     version: i32,
 ) -> Result<(), BadRequest<String>> {
     let _ = sqlx::query!("DELETE FROM versions WHERE version=?", version)
-        .execute(&mut *db)
+        .execute(&mut **db)
         .await;
     let _ = sqlx::query!("DELETE FROM filters WHERE version=?", version)
-        .execute(&mut *db)
+        .execute(&mut **db)
         .await;
     let _ = sqlx::query!(
         "DELETE FROM speakers_settings_for_ui WHERE version=?",
         version
     )
-    .execute(&mut *db)
+    .execute(&mut **db)
     .await;
     let _ = sqlx::query!("DELETE FROM speakers_for_camilla WHERE version=?", version)
-        .execute(&mut *db)
+        .execute(&mut **db)
         .await;
 
     let _ = sqlx::query!("DELETE FROM applied_version WHERE version=?", version)
-        .execute(&mut *db)
+        .execute(&mut **db)
         .await;
     Ok(())
 }

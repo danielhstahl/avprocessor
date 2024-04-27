@@ -109,6 +109,8 @@ export function filterReducer(state: State, action: Action): State {
                 }
             } : state
         case FilterAction.INIT:
+            console.log(SPEAKER_OPTIONS)
+            console.log(state.filters)
             const speakerConfiguration = action.value as string
             return {
                 filters: setFilterBase(speakerConfiguration, state.filters) || state.filters
