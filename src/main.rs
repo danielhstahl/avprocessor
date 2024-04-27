@@ -101,67 +101,6 @@ async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
         },
         None => Err(rocket),
     }
-    /*if let Some(db) = Settings::fetch(&rocket) {
-        let _1 = sqlx::query(
-            "CREATE TABLE if not exists filters (
-                version integer not null,
-                filter_index integer not null,
-                speaker text not null,
-                freq integer not null,
-                gain real not null,
-                q real not null,
-                PRIMARY KEY (version, filter_index, speaker));",
-        )
-        .execute(&db.0)
-        .await;
-
-        let _2 = sqlx::query(
-            "CREATE TABLE if not exists speakers_settings_for_ui (
-            version integer not null,
-            speaker text not null,
-            crossover integer,
-            distance real not null,
-            gain real not null,
-            is_subwoofer integer not null,
-            PRIMARY KEY (version, speaker));",
-        )
-        .execute(&db.0)
-        .await;
-
-        let _3 = sqlx::query(
-            "CREATE TABLE if not exists speakers_for_camilla (
-                version text not null,
-                speaker text not null,
-                crossover integer,
-                delay real not null,
-                gain real not null,
-                is_subwoofer integer not null,
-                PRIMARY KEY (version, speaker));",
-        )
-        .execute(&db.0)
-        .await;
-
-        let _4 = sqlx::query(
-            "CREATE TABLE if not exists versions (
-                version integer not null PRIMARY KEY,
-                version_date text not null,
-                device text not null,
-                selected_distance text not null);",
-        )
-        .execute(&db.0)
-        .await;
-
-        let _5 = sqlx::query(
-            "CREATE TABLE if not exists applied_version (
-                version integer not null PRIMARY KEY);",
-        )
-        .execute(&db.0)
-        .await;
-
-        Ok(rocket)
-    } else {
-        Err(rocket)
-    }*/
 }
 
 /// settings stored in sqlite are converted to the appropriate camilla configuration
