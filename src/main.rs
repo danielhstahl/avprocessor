@@ -612,24 +612,19 @@ fn rocket() -> _ {
     rocket::build()
         .mount("/", FileServer::from(html_files))
         .manage(camilla_settings)
-        .attach(AdHoc::on_ignite("SQLx Stage", |rocket| async {
-            rocket
-                .attach(Settings::init())
-                .attach(AdHoc::try_on_ignite("DB Migrations", run_migrations))
-                .mount(
-                    "/",
-                    routes![
-                        config_latest,
-                        config_version,
-                        write_configuration,
-                        apply_config_version,
-                        delete_configuration,
-                        get_versions
-                    ],
-                )
-        }))
-    //.attach(Settings::init())
-    //.attach(AdHoc::try_on_ignite("DB Migrations", run_migrations))
+        .attach(Settings::init())
+        .attach(AdHoc::try_on_ignite("DB Migrations", run_migrations))
+        .mount(
+            "/",
+            routes![
+                config_latest,
+                config_version,
+                write_configuration,
+                apply_config_version,
+                delete_configuration,
+                get_versions
+            ],
+        )
 }
 
 #[cfg(test)]
