@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT \n            selected_distance as \"selected_distance: crate::processor::SelectedDistanceType\",\n            device as \"device: crate::processor::DeviceType\"\n            from versions where version=?",
+  "describe": {
+    "columns": [
+      {
+        "name": "selected_distance: crate::processor::SelectedDistanceType",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "device: crate::processor::DeviceType",
+        "ordinal": 1,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "547589b8a89c32a27407826aa823843019ca4c7784dc80101dd9cf89d5a8be0b"
+}

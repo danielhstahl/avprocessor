@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT speaker, \n        freq as \"freq: i32\", \n        gain as \"gain: f32\", \n        q as \"q: f32\"\n        from filters where version=?",
+  "describe": {
+    "columns": [
+      {
+        "name": "speaker",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "freq: i32",
+        "ordinal": 1,
+        "type_info": "Int64"
+      },
+      {
+        "name": "gain: f32",
+        "ordinal": 2,
+        "type_info": "Float"
+      },
+      {
+        "name": "q: f32",
+        "ordinal": 3,
+        "type_info": "Float"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "63a83c98da41b4c64185ac3e3791c22ba5925fbc02b24cae4e4157cf341e7401"
+}

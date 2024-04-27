@@ -67,7 +67,6 @@ const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationPro
     const { state: { versions, selectedVersion }, dispatch: versionDispatch } = useVersion()
     const { state: { delayType }, dispatch: delayDispatch } = useDelay()
     const { state: { deviceType }, dispatch: deviceDispatch } = useDevice()
-
     const [messageApi, contextHolder] = message.useMessage()
 
     const saveSuccess = () => {
@@ -144,7 +143,7 @@ const SpeakerComponent: React.FC<SpeakerComponentProps> = ({ getConfigurationPro
                 delayType={delayType}
                 speaker={speaker}
                 updateSpeaker={(speaker: Speaker) => speakerDispatch({ type: SpeakerAction.UPDATE, value: speaker })}
-                filters={speakerFilters[speaker.speaker]}
+                filters={speakerFilters[speaker.speaker] || []}
                 updateFilter={(filter: FilterWithIndex) => filterDispatch({ type: FilterAction.UPDATE, value: filter })}
                 addFilter={() => filterDispatch({ type: FilterAction.ADD, value: speaker.speaker })}
                 removeFilter={(filter: FilterWithIndex) => filterDispatch({ type: FilterAction.REMOVE, value: filter })}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO speakers_for_camilla (\n                version, \n                speaker, \n                crossover, \n                delay, \n                gain, \n                is_subwoofer\n            ) VALUES (?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "74677c083bdec14a79c7304c00e89141a073bc8dcf85ece7f2b5d7c2348b57d6"
+}

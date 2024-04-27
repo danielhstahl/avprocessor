@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM filters WHERE version=?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "90fc454b16b905f1ca7ffe9986d743bd5c0ea0437158f932d7d114f0be2620b4"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM speakers_for_camilla WHERE version=?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "d28b966c0905444faced26654f6b41ef8e78cc5cd872248ffd694fa6738f97e6"
+}

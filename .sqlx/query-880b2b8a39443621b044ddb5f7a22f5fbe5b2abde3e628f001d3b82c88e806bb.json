@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM speakers_settings_for_ui WHERE version=?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "880b2b8a39443621b044ddb5f7a22f5fbe5b2abde3e628f001d3b82c88e806bb"
+}

@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT \n        t1.version as \"version: i32\", \n        t1.version_date,\n        case when \n            t2.version is null then false \n            else true \n        end as \"applied_version: bool\"\n        FROM versions t1 \n        left join applied_version t2 \n        on t1.version=t2.version\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "version: i32",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "version_date",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "applied_version: bool",
+        "ordinal": 2,
+        "type_info": "Int"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "0bd1fe933c8bb0db0b45a65caef2d0dfe8375966f61afd895a573d46c6f5650a"
+}
