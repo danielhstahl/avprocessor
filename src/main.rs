@@ -91,15 +91,25 @@ struct CamillaSettings {
 
 /// runs on every startup, idempotent table creation
 async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
-    if let Some(db) = Settings::fetch(&rocket) {
+    match Settings::fetch(&rocket) {
+        Some(db) => match sqlx::migrate!("db/migrations").run(&**db).await {
+            Ok(_) => Ok(rocket),
+            Err(e) => {
+                error!("Failed to initialize SQLx database: {}", e);
+                Err(rocket)
+            }
+        },
+        None => Err(rocket),
+    }
+    /*if let Some(db) = Settings::fetch(&rocket) {
         let _1 = sqlx::query(
             "CREATE TABLE if not exists filters (
-                version integer not null, 
-                filter_index integer not null, 
-                speaker text not null, 
-                freq integer not null, 
-                gain real not null, 
-                q real not null, 
+                version integer not null,
+                filter_index integer not null,
+                speaker text not null,
+                freq integer not null,
+                gain real not null,
+                q real not null,
                 PRIMARY KEY (version, filter_index, speaker));",
         )
         .execute(&db.0)
@@ -108,11 +118,11 @@ async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
         let _2 = sqlx::query(
             "CREATE TABLE if not exists speakers_settings_for_ui (
             version integer not null,
-            speaker text not null, 
-            crossover integer, 
-            distance real not null, 
-            gain real not null, 
-            is_subwoofer integer not null, 
+            speaker text not null,
+            crossover integer,
+            distance real not null,
+            gain real not null,
+            is_subwoofer integer not null,
             PRIMARY KEY (version, speaker));",
         )
         .execute(&db.0)
@@ -120,12 +130,12 @@ async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
 
         let _3 = sqlx::query(
             "CREATE TABLE if not exists speakers_for_camilla (
-                version text not null, 
-                speaker text not null, 
-                crossover integer, 
-                delay real not null, 
+                version text not null,
+                speaker text not null,
+                crossover integer,
+                delay real not null,
                 gain real not null,
-                is_subwoofer integer not null, 
+                is_subwoofer integer not null,
                 PRIMARY KEY (version, speaker));",
         )
         .execute(&db.0)
@@ -133,7 +143,7 @@ async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
 
         let _4 = sqlx::query(
             "CREATE TABLE if not exists versions (
-                version integer not null PRIMARY KEY, 
+                version integer not null PRIMARY KEY,
                 version_date text not null,
                 device text not null,
                 selected_distance text not null);",
@@ -151,7 +161,7 @@ async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
         Ok(rocket)
     } else {
         Err(rocket)
-    }
+    }*/
 }
 
 /// settings stored in sqlite are converted to the appropriate camilla configuration
@@ -663,19 +673,24 @@ fn rocket() -> _ {
     rocket::build()
         .mount("/", FileServer::from(html_files))
         .manage(camilla_settings)
-        .attach(Settings::init())
-        .attach(AdHoc::try_on_ignite("DB Migrations", run_migrations))
-        .mount(
-            "/",
-            routes![
-                config_latest,
-                config_version,
-                write_configuration,
-                apply_config_version,
-                delete_configuration,
-                get_versions
-            ],
-        )
+        .attach(AdHoc::on_ignite("SQLx Stage", |rocket| async {
+            rocket
+                .attach(Settings::init())
+                .attach(AdHoc::try_on_ignite("DB Migrations", run_migrations))
+                .mount(
+                    "/",
+                    routes![
+                        config_latest,
+                        config_version,
+                        write_configuration,
+                        apply_config_version,
+                        delete_configuration,
+                        get_versions
+                    ],
+                )
+        }))
+    //.attach(Settings::init())
+    //.attach(AdHoc::try_on_ignite("DB Migrations", run_migrations))
 }
 
 #[cfg(test)]
