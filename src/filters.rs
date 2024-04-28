@@ -12,9 +12,7 @@ pub fn gain_filter_name(speaker_name: &str) -> String {
 pub fn peq_filter_name(speaker_name: &str, peq_index: usize) -> String {
     format!("peq_{}_{}", speaker_name, peq_index)
 }
-pub fn volume_filter_name() -> String {
-    format!("volume")
-}
+
 pub fn crossover_speaker_name(speaker_name: &str) -> String {
     format!("crossover_speaker_{}", speaker_name)
 }
@@ -108,15 +106,6 @@ pub fn create_output_filters(
                         },
                     }),
                 )
-            }))
-            .chain(speakers.iter().map(|_s| {
-                (
-                    volume_filter_name(),
-                    SpeakerAdjust::VolumeFilter(VolumeFilter {
-                        filter_type: FilterType::Volume,
-                        parameters: VolumeParameters { ramp_time: 200 }, //200 ms
-                    }),
-                )
             })),
     )
 }
@@ -141,7 +130,6 @@ enum FilterType {
     Biquad,
     BiquadCombo,
     Gain,
-    Volume,
 }
 
 #[derive(Serialize)]
@@ -175,12 +163,6 @@ struct PeakingParameters {
     gain: f32,
     #[serde(rename = "type")]
     peaking_type: PeakingType,
-}
-
-#[derive(Serialize)]
-#[serde(crate = "rocket::serde")]
-struct VolumeParameters {
-    ramp_time: i32,
 }
 
 #[derive(Serialize)]
@@ -224,14 +206,6 @@ pub struct DelayFilter {
 
 #[derive(Serialize)]
 #[serde(crate = "rocket::serde")]
-pub struct VolumeFilter {
-    #[serde(rename = "type")]
-    filter_type: FilterType,
-    parameters: VolumeParameters,
-}
-
-#[derive(Serialize)]
-#[serde(crate = "rocket::serde")]
 pub struct GainFilter {
     #[serde(rename = "type")]
     filter_type: FilterType,
@@ -254,5 +228,4 @@ pub enum SpeakerAdjust {
     PeakingFilter(PeakingFilter),
     CrossoverFilter(CrossoverFilter),
     GainFilter(GainFilter),
-    VolumeFilter(VolumeFilter),
 }

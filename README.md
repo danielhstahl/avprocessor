@@ -9,9 +9,11 @@ Running local commands (assuming an appropriate json file; a "serialized" versio
 `curl -X GET http://127.0.0.1:8000/config/latest`
 
 
-For testing, start camilla:
+Start camilla (2.0 and above):
 
-`path/to/camilladsp -v -p1234 test.yaml`
+`path/to/camilladsp -v -p1234 --statefile mystate.yml --wait`
+
+This will will wait for initial configuration from websocket.
 
 Default port for camilla is `1234` in [main.rs](./src/main.rs).  This can be overridden by specifying the full websocket path to camilla as the first argument to the cli; eg `cargo run ws://127.0.0.1:4321`.    
 
@@ -19,9 +21,9 @@ Default port for camilla is `1234` in [main.rs](./src/main.rs).  This can be ove
 # Generate SQL bindings to enable "offline" compilation
 
 Install sqlx cli to enable rust to compile without a database.  This needs to be done after creating the tables so it can compile the binary and extract the metadata.
-`cargo install --version 0.6.3 sqlx-cli`
-`cargo sqlx prepare`
-This creates the sqlx-data.json which allows the binary to be recompiled without the actual database existing.
+`cargo install --version 0.7.4 sqlx-cli --no-default-features --features sqlite`
+`DATABASE_URL="sqlite:$(pwd)/db/settings.sqlite" cargo sqlx prepare`
+This creates the files in .sqlx which allows the binary to be recompiled without the actual database existing.
 
 # UI
 
