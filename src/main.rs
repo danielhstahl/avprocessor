@@ -140,11 +140,7 @@ fn convert_processor_settings_to_camilla(
                     split_mixer.channels.num_in_channel,
                     combine_mixer.channels.num_out_channel,
                 ),
-                DeviceType::HDMI => Devices::hdmi(
-                    split_mixer.channels.num_in_channel,
-                    combine_mixer.channels.num_out_channel,
-                ),
-                DeviceType::HDMIMac => Devices::hdmi_mac(
+                DeviceType::HDMI => Devices::hdmi_osmc_pi(
                     split_mixer.channels.num_in_channel,
                     combine_mixer.channels.num_out_channel,
                 ),
@@ -191,8 +187,7 @@ fn convert_processor_settings_to_camilla(
                     DeviceType::MotuMk5 => Devices::motu_mk5(input_channels, output_channels),
                     DeviceType::OktoDac8 => Devices::okto_dac8(input_channels, output_channels),
                     DeviceType::ToppingDm7 => Devices::topping_dm7(input_channels, output_channels),
-                    DeviceType::HDMI => Devices::hdmi(input_channels, output_channels),
-                    DeviceType::HDMIMac => Devices::hdmi_mac(input_channels, output_channels),
+                    DeviceType::HDMI => Devices::hdmi_osmc_pi(input_channels, output_channels),
                 },
             };
             Ok(result)

@@ -39,7 +39,6 @@ pub enum DeviceType {
     ToppingDm7,
     MotuMk5,
     HDMI,
-    HDMIMac,
 }
 
 #[derive(Serialize, Deserialize, sqlx::FromRow)]
