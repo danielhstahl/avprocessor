@@ -11,7 +11,7 @@ StartLimitBurst=10
 Type=simple
 Environment=ROCKET_DATABASES='{settings={url="settings.sqlite"}}'
 Environment=ROCKET_ADDRESS="0.0.0.0"
-ExecStart=/home/username/camilladsp/avprocessor ws://127.0.0.1:1234 /home/username/camilladsp/config.yaml /home/username/camilladsp/build
+ExecStart=/home/username/camilladsp/avprocessor ws://127.0.0.1:1234 /home/username/camilladsp/build
 Restart=always
 RestartSec=1
 StandardOutput=journal
