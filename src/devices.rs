@@ -52,7 +52,7 @@ impl Devices {
         }
     }
 
-    pub fn hdmi(input_channels: usize, output_channels: usize) -> Self {
+    pub fn hdmi_osmc_pi(input_channels: usize, output_channels: usize) -> Self {
         Self {
             samplerate: 96000, //high sample rate; should be transparent
             chunksize: 2048,
@@ -61,33 +61,13 @@ impl Devices {
                 device_type: "Alsa".to_string(),
                 channels: input_channels,
                 device: "hw:Loopback,1".to_string(),
-                format: Some("S16LE".to_string()),
+                format: Some("S24LE3".to_string()),
             },
             playback: PlaybackConfig {
                 device_type: "Alsa".to_string(),
                 channels: output_channels,
-                device: "hw:b1".to_string(),
-                format: Some("S16LE".to_string()),
-            },
-        }
-    }
-
-    pub fn hdmi_mac(input_channels: usize, output_channels: usize) -> Self {
-        Self {
-            samplerate: 96000, //high sample rate; should be transparent
-            chunksize: 2048,
-            queuelimit: 1,
-            capture: CaptureConfig {
-                device_type: "CoreAudio".to_string(),
-                channels: input_channels,
-                device: "BlackHole 16ch".to_string(),
-                format: Some("FLOAT32LE".to_string()),
-            },
-            playback: PlaybackConfig {
-                device_type: "CoreAudio".to_string(),
-                channels: output_channels,
-                device: "Mac mini Speakers".to_string(),
-                format: Some("FLOAT32LE".to_string()),
+                device: "hw:vc4hdmi".to_string(),
+                format: Some("S24LE3".to_string()),
             },
         }
     }
