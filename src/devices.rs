@@ -61,13 +61,13 @@ impl Devices {
                 device_type: "Alsa".to_string(),
                 channels: input_channels,
                 device: "hw:Loopback,1".to_string(),
-                format: Some("S24LE3".to_string()),
+                format: Some("S24LE".to_string()),
             },
             playback: PlaybackConfig {
                 device_type: "Alsa".to_string(),
                 channels: output_channels,
                 device: "hw:vc4hdmi".to_string(),
-                format: Some("S24LE3".to_string()),
+                format: Some("S24LE".to_string()),
             },
         }
     }
