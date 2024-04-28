@@ -3,7 +3,6 @@ use rocket::serde::{Deserialize, Serialize};
 pub struct ProcessorSettingsForCamilla {
     pub filters: Vec<Filter>,
     pub speakers: Vec<Speaker>,
-    pub selected_distance: SelectedDistanceType,
     pub device: DeviceType,
 }
 
@@ -40,6 +39,7 @@ pub enum DeviceType {
     ToppingDm7,
     MotuMk5,
     HDMI,
+    HDMIMac,
 }
 
 #[derive(Serialize, Deserialize, sqlx::FromRow)]
