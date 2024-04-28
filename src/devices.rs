@@ -66,7 +66,7 @@ impl Devices {
             playback: PlaybackConfig {
                 device_type: "Alsa".to_string(),
                 channels: output_channels,
-                device: "hw:vc4hdmi".to_string(),
+                device: "sysdefault:vc4hdmi".to_string(), //looks like sysdefault is required?  very odd...
                 format: Some("S24LE".to_string()),
             },
         }
