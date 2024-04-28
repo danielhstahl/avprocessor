@@ -51,15 +51,16 @@ The computation for delays are relatively straightforward.  The longest distance
 * sudo apt install libasound2-dev
 * sudo apt install alsa-utils make pkgconf build-essential
 * mkdir ~/camilladsp
-* wget https://github.com/HEnquist/camilladsp/releases/download/v1.0.3/camilladsp-linux-aarch64.tar.gz -P ~/camilladsp/
+* wget https://github.com/HEnquist/camilladsp/releases/download/v2.0.3/camilladsp-linux-aarch64.tar.gz -P ~/camilladsp/
 * tar -xvf ~/camilladsp/camilladsp-linux-aarch64.tar.gz -C ~/camilladsp/
 * cd camilladsp
 * rm camilladsp-linux-aarch64.tar.gz
-* wget https://github.com/danielhstahl/avprocessor/releases/download/v0.2.3/avprocessor-aarch64-unknown-linux-gnu.tar.gz -P ~/camilladsp/
-* wget https://github.com/danielhstahl/avprocessor/releases/download/v0.2.2/avprocessor-ui.tar.gz -P ~/camilladsp/
+* wget https://github.com/danielhstahl/avprocessor/releases/download/v0.3.0/avprocessor-aarch64-unknown-linux-gnu.tar.gz -P ~/camilladsp/
+* wget https://github.com/danielhstahl/avprocessor/releases/download/v0.3.0/avprocessor-ui.tar.gz -P ~/camilladsp/
 * tar -xvf ~/camilladsp/avprocessor-aarch64-unknown-linux-gnu.tar.gz -C ~/camilladsp/
 * tar -xvf ~/camilladsp/avprocessor-ui.tar.gz -C ~/camilladsp/
-* ROCKET_DATABASES='{settings={url="settings.sqlite"}}' ROCKET_ADDRESS="0.0.0.0" ./avprocessor ws://127.0.0.1:1234 ./config.yaml ./build
+* ROCKET_DATABASES='{settings={url="settings.sqlite"}}' ROCKET_ADDRESS="0.0.0.0" ./avprocessor ws://127.0.0.1:1234 ./build
+* ./camilladsp -v -p1234 --statefile state.yml --wait --address 0.0.0.0
 * `sudo apt install linux-modules-extra-raspi`
 * `sudo nano /etc/modules-load.d/snd-aloop.conf`, add "snd-aloop" to the file
 
