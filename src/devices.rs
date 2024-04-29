@@ -21,12 +21,21 @@ pub struct PlaybackConfig {
 
 #[derive(Serialize)]
 #[serde(crate = "rocket::serde")]
+pub struct ResamplerConfig {
+    #[serde(rename = "type")]
+    resampler_type: String,
+}
+
+#[derive(Serialize)]
+#[serde(crate = "rocket::serde")]
 pub struct Devices {
     samplerate: i32, //using ALSA plugin
+    capture_samplerate: i32,
     chunksize: i32,
     queuelimit: i32,
     capture: CaptureConfig,
     playback: PlaybackConfig,
+    resampler: ResamplerConfig,
 }
 
 //in the future, select a device
@@ -37,6 +46,7 @@ impl Devices {
             samplerate: 96000, //high sample rate; should be transparent
             chunksize: 2048,
             queuelimit: 1,
+            capture_samplerate: 48000, //any source needs to resample 44.1 to 48
             capture: CaptureConfig {
                 device_type: "Alsa".to_string(),
                 channels: input_channels,
@@ -49,6 +59,9 @@ impl Devices {
                 device: "hw:DAC8PRO".to_string(),
                 format: Some("S32LE".to_string()),
             },
+            resampler: ResamplerConfig {
+                resampler_type: "Synchronous".to_string(),
+            },
         }
     }
 
@@ -57,6 +70,7 @@ impl Devices {
             samplerate: 96000, //high sample rate; should be transparent
             chunksize: 2048,
             queuelimit: 1,
+            capture_samplerate: 48000, //any source needs to resample 44.1 to 48
             capture: CaptureConfig {
                 device_type: "Alsa".to_string(),
                 channels: input_channels,
@@ -69,6 +83,10 @@ impl Devices {
                 device: "sysdefault:vc4hdmi".to_string(), //looks like sysdefault is required?  very odd...
                 format: Some("S24LE".to_string()),
             },
+            resampler: ResamplerConfig {
+                //may need to add a `capture_samplerate` as well, we shall see
+                resampler_type: "Synchronous".to_string(),
+            },
         }
     }
 
@@ -77,6 +95,7 @@ impl Devices {
             samplerate: 96000, //high sample rate; should be transparent
             chunksize: 2048,
             queuelimit: 1,
+            capture_samplerate: 48000, //any source needs to resample 44.1 to 48
             capture: CaptureConfig {
                 device_type: "Alsa".to_string(),
                 channels: input_channels,
@@ -89,6 +108,9 @@ impl Devices {
                 device: "hw:DM7".to_string(),
                 format: Some("S32LE".to_string()),
             },
+            resampler: ResamplerConfig {
+                resampler_type: "Synchronous".to_string(),
+            },
         }
     }
     pub fn motu_mk5(input_channels: usize, output_channels: usize) -> Self {
@@ -96,6 +118,7 @@ impl Devices {
             samplerate: 96000, //high sample rate; should be transparent
             chunksize: 2048,
             queuelimit: 1,
+            capture_samplerate: 48000, //any source needs to resample 44.1 to 48
             capture: CaptureConfig {
                 device_type: "Alsa".to_string(),
                 channels: input_channels,
@@ -107,6 +130,9 @@ impl Devices {
                 channels: output_channels,
                 device: "hw:UltraLitemk5".to_string(),
                 format: Some("S24LE3".to_string()),
+            },
+            resampler: ResamplerConfig {
+                resampler_type: "Synchronous".to_string(),
             },
         }
     }
