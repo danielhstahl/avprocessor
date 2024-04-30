@@ -70,7 +70,7 @@ impl Devices {
             samplerate: 96000, //high sample rate; should be transparent
             chunksize: 2048,
             queuelimit: 1,
-            capture_samplerate: 48000, //any source needs to resample 44.1 to 48
+            capture_samplerate: 44100, //for testing
             capture: CaptureConfig {
                 device_type: "Alsa".to_string(),
                 channels: input_channels,
