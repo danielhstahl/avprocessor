@@ -75,13 +75,13 @@ impl Devices {
                 device_type: "Alsa".to_string(),
                 channels: input_channels,
                 device: "hw:Loopback,1".to_string(),
-                format: Some("S24LE".to_string()),
+                format: Some("S16LE".to_string()),
             },
             playback: PlaybackConfig {
                 device_type: "Alsa".to_string(),
                 channels: output_channels,
                 device: "sysdefault:vc4hdmi".to_string(), //looks like sysdefault is required?  very odd...
-                format: Some("S24LE".to_string()),
+                format: Some("S16LE".to_string()),
             },
             resampler: ResamplerConfig {
                 //may need to add a `capture_samplerate` as well, we shall see
