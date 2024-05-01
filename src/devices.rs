@@ -45,7 +45,7 @@ impl Devices {
         Self {
             samplerate: 96000, //high sample rate; should be transparent
             chunksize: 2048,
-            queuelimit: 1,
+            queuelimit: 4,
             capture_samplerate: 48000, //any source needs to resample 44.1 to 48
             capture: CaptureConfig {
                 device_type: "Alsa".to_string(),
@@ -69,19 +69,19 @@ impl Devices {
         Self {
             samplerate: 96000, //high sample rate; should be transparent
             chunksize: 2048,
-            queuelimit: 1,
-            capture_samplerate: 44100, //for testing
+            queuelimit: 4,
+            capture_samplerate: 48000, //any source needs to resample 44.1 to 48
             capture: CaptureConfig {
                 device_type: "Alsa".to_string(),
                 channels: input_channels,
                 device: "hw:Loopback,1".to_string(),
-                format: Some("S16LE".to_string()),
+                format: Some("S24LE".to_string()),
             },
             playback: PlaybackConfig {
                 device_type: "Alsa".to_string(),
                 channels: output_channels,
                 device: "sysdefault:vc4hdmi".to_string(), //looks like sysdefault is required?  very odd...
-                format: Some("S16LE".to_string()),
+                format: Some("S24LE".to_string()),
             },
             resampler: ResamplerConfig {
                 //may need to add a `capture_samplerate` as well, we shall see
@@ -94,7 +94,7 @@ impl Devices {
         Self {
             samplerate: 96000, //high sample rate; should be transparent
             chunksize: 2048,
-            queuelimit: 1,
+            queuelimit: 4,
             capture_samplerate: 48000, //any source needs to resample 44.1 to 48
             capture: CaptureConfig {
                 device_type: "Alsa".to_string(),
@@ -117,7 +117,7 @@ impl Devices {
         Self {
             samplerate: 96000, //high sample rate; should be transparent
             chunksize: 2048,
-            queuelimit: 1,
+            queuelimit: 4,
             capture_samplerate: 48000, //any source needs to resample 44.1 to 48
             capture: CaptureConfig {
                 device_type: "Alsa".to_string(),
