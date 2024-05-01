@@ -11,7 +11,6 @@ use rocket_db_pools::{Connection, Database};
 use std::collections::BTreeMap;
 use tungstenite::{connect, Message};
 use url::Url;
-
 mod devices;
 mod filters;
 mod mixers;
@@ -55,6 +54,12 @@ struct Version {
     applied_version: bool,
     version_date: String,
 }
+#[derive(Serialize, sqlx::FromRow)]
+#[serde(crate = "rocket::serde", rename_all = "camelCase")]
+/// Used in the UI; represents versions of the configuration
+struct AppliedVersion {
+    applied_version: i32,
+}
 
 #[derive(sqlx::FromRow)]
 /// Wrapper to extract version from sqlx macro
@@ -97,6 +102,25 @@ async fn run_migrations(rocket: Rocket<Build>) -> fairing::Result {
                 error!("Failed to initialize SQLx database: {}", e);
                 Err(rocket)
             }
+        },
+        None => Err(rocket),
+    }
+}
+
+/// runs on every startup, sends command to camilladsp
+async fn load_latest_config(rocket: Rocket<Build>) -> fairing::Result {
+    match Settings::fetch(&rocket) {
+        Some(db) => match rocket.state::<CamillaSettings>() {
+            Some(camilla_settings) => match get_applied_version(db).await {
+                Ok(applied_version) => {
+                    match apply_config_to_camilla(db, applied_version, camilla_settings).await {
+                        Ok(_) => Ok(rocket),
+                        Err(_) => Err(rocket),
+                    }
+                }
+                Err(_) => Err(rocket),
+            },
+            None => Err(rocket),
         },
         None => Err(rocket),
     }
@@ -197,9 +221,9 @@ fn convert_processor_settings_to_camilla(
 
 /// reads selected distance type (MS, FEET, METERS) for the specific configration version
 async fn get_selected_distance_and_device(
-    mut db: Connection<Settings>,
+    db: &Settings,
     version: i32,
-) -> Result<(SelectedDistanceAndDevice, Connection<Settings>), sqlx::Error> {
+) -> Result<SelectedDistanceAndDevice, sqlx::Error> {
     let selected_distance_and_device = sqlx::query_as!(
         SelectedDistanceAndDevice,
         r#"SELECT 
@@ -208,16 +232,13 @@ async fn get_selected_distance_and_device(
             from versions where version=?"#,
         version
     )
-    .fetch_one(&mut **db)
+    .fetch_one(&**db)
     .await?;
-    Ok((selected_distance_and_device, db))
+    Ok(selected_distance_and_device)
 }
 
 /// reads filters for the specific configration version
-async fn get_filters(
-    mut db: Connection<Settings>,
-    version: i32,
-) -> Result<(Vec<Filter>, Connection<Settings>), sqlx::Error> {
+async fn get_filters(db: &Settings, version: i32) -> Result<Vec<Filter>, sqlx::Error> {
     let filters = sqlx::query_as!(
         Filter,
         r#"SELECT speaker, 
@@ -227,16 +248,16 @@ async fn get_filters(
         from filters where version=?"#,
         version
     )
-    .fetch_all(&mut **db)
+    .fetch_all(&**db)
     .await?;
-    Ok((filters, db))
+    Ok(filters)
 }
 
 /// reads speakers that map to camilla speakers for the specific configration version
 async fn get_speakers_for_camilla(
-    mut db: Connection<Settings>,
+    db: &Settings,
     version: i32,
-) -> Result<(Vec<Speaker>, Connection<Settings>), sqlx::Error> {
+) -> Result<Vec<Speaker>, sqlx::Error> {
     let speakers = sqlx::query_as!(
         Speaker,
         r#"SELECT 
@@ -248,14 +269,14 @@ async fn get_speakers_for_camilla(
         from speakers_for_camilla where version=?"#,
         version
     )
-    .fetch_all(&mut **db)
+    .fetch_all(&**db)
     .await?;
-    Ok((speakers, db))
+    Ok(speakers)
 }
 
 /// reads speakers that map to the UI for the specific configration version
 async fn get_speakers_for_ui(
-    mut db: Connection<Settings>,
+    db: &Settings,
     version: i32,
 ) -> Result<Vec<SpeakerForUI>, sqlx::Error> {
     let speakers = sqlx::query_as!(
@@ -270,44 +291,35 @@ async fn get_speakers_for_ui(
         from speakers_settings_for_ui where version=?"#,
         version,
     )
-    .fetch_all(&mut **db)
+    .fetch_all(&**db)
     .await?;
     Ok(speakers)
 }
 
 /// gets configuration for camilla from database
 async fn get_config_for_camilla_from_db(
-    db: Connection<Settings>,
+    db: &Settings,
     version: i32,
-) -> Result<(ProcessorSettingsForCamilla, Connection<Settings>), sqlx::Error> {
-    let (SelectedDistanceAndDevice { device, .. }, db) =
+) -> Result<ProcessorSettingsForCamilla, sqlx::Error> {
+    let SelectedDistanceAndDevice { device, .. } =
         get_selected_distance_and_device(db, version).await?;
-    let (filters, db) = get_filters(db, version).await?;
-    let (speakers, db) = get_speakers_for_camilla(db, version).await?;
-    Ok((
-        ProcessorSettingsForCamilla {
-            filters,
-            speakers,
-            device,
-        },
-        db,
-    ))
+    let filters = get_filters(db, version).await?;
+    let speakers = get_speakers_for_camilla(db, version).await?;
+    Ok(ProcessorSettingsForCamilla {
+        filters,
+        speakers,
+        device,
+    })
 }
 
 /// gets configuration for UI from database
-async fn get_config_from_db(
-    db: Connection<Settings>,
-    version: i32,
-) -> Result<ProcessorSettings, sqlx::Error> {
-    let (
-        SelectedDistanceAndDevice {
-            selected_distance,
-            device,
-        },
-        db,
-    ) = get_selected_distance_and_device(db, version).await?;
-    let (filters, db) = get_filters(db, version).await?;
-    let speakers = get_speakers_for_ui(db, version).await?;
+async fn get_config_from_db(db: &Settings, version: i32) -> Result<ProcessorSettings, sqlx::Error> {
+    let SelectedDistanceAndDevice {
+        selected_distance,
+        device,
+    } = get_selected_distance_and_device(&db, version).await?;
+    let filters = get_filters(&db, version).await?;
+    let speakers = get_speakers_for_ui(&db, version).await?;
     Ok(ProcessorSettings {
         filters,
         speakers,
@@ -402,15 +414,30 @@ async fn get_versions(
 
     Ok(Json(versions))
 }
+
+async fn get_applied_version(db: &Settings) -> Result<i32, BadRequest<String>> {
+    let AppliedVersion { applied_version } = sqlx::query_as!(
+        AppliedVersion,
+        r#"
+        SELECT 
+        version as "applied_version: i32"
+        FROM applied_version
+        "#,
+    )
+    .fetch_one(&**db)
+    .await
+    .map_err(|e| BadRequest(e.to_string()))?;
+
+    Ok(applied_version)
+}
+
 #[get("/config/latest")]
-async fn config_latest(
-    mut db: Connection<Settings>,
-) -> Result<Json<ProcessorSettings>, BadRequest<String>> {
+async fn config_latest(db: &Settings) -> Result<Json<ProcessorSettings>, BadRequest<String>> {
     let ConfigVersion { version } = sqlx::query_as!(
         ConfigVersion,
         r#"SELECT max(version) as "version!: i32"  from versions"#
     )
-    .fetch_one(&mut **db)
+    .fetch_one(&**db)
     .await
     .map_err(|e| BadRequest(e.to_string()))?;
     get_config_from_db(db, version)
@@ -421,7 +448,7 @@ async fn config_latest(
 
 #[get("/config/<version>")]
 async fn config_version(
-    db: Connection<Settings>,
+    db: &Settings,
     version: i32,
 ) -> Result<Json<ProcessorSettings>, BadRequest<String>> {
     get_config_from_db(db, version)
@@ -430,23 +457,42 @@ async fn config_version(
         .map_err(|e| BadRequest(e.to_string()))
 }
 
-//TODO, run this on startup as well, to set initial config in camilladsp
 #[post("/config/apply/<version>", format = "application/json")]
 /// Configurations can be saved without actually be implemented or applied to camilla.  
 /// This endpoint applies the selected version to camilla
 async fn apply_config_version(
-    db: Connection<Settings>,
+    db: &Settings,
     version: i32,
     camilla_settings: &State<CamillaSettings>,
 ) -> Result<(), BadRequest<String>> {
-    let (settings, mut db) = get_config_for_camilla_from_db(db, version)
+    apply_config_to_camilla(db, version, camilla_settings).await?;
+
+    let _ = sqlx::query!("DELETE from applied_version")
+        .execute(&**db)
         .await
         .map_err(|e| BadRequest(e.to_string()))?;
+    let _ = sqlx::query!("INSERT INTO applied_version (version) VALUES (?)", version)
+        .execute(&**db)
+        .await
+        .map_err(|e| BadRequest(e.to_string()))?;
+
+    Ok(())
+}
+
+async fn apply_config_to_camilla(
+    db: &Settings,
+    version: i32,
+    camilla_settings: &CamillaSettings,
+) -> Result<(), BadRequest<String>> {
+    let settings = get_config_for_camilla_from_db(db, version)
+        .await
+        .map_err(|e| {
+            println!("{}", e);
+            BadRequest(e.to_string())
+        })?;
     let config =
         convert_processor_settings_to_camilla(&settings).map_err(|e| BadRequest(e.to_string()))?;
-
     let config_as_str = json::to_string(&config).map_err(|e| BadRequest(e.to_string()))?;
-
     let ws_url =
         Url::parse(&camilla_settings.websocket_url).map_err(|e| BadRequest(e.to_string()))?;
     let (mut socket, _response) = connect(ws_url).map_err(|e| BadRequest(e.to_string()))?;
@@ -457,16 +503,6 @@ async fn apply_config_version(
     socket
         .send(Message::Text(config_as_json))
         .map_err(|e| BadRequest(e.to_string()))?;
-
-    let _ = sqlx::query!("DELETE from applied_version")
-        .execute(&mut **db)
-        .await
-        .map_err(|e| BadRequest(e.to_string()))?;
-    let _ = sqlx::query!("INSERT INTO applied_version (version) VALUES (?)", version)
-        .execute(&mut **db)
-        .await
-        .map_err(|e| BadRequest(e.to_string()))?;
-
     Ok(())
 }
 
@@ -592,6 +628,10 @@ fn rocket() -> _ {
         .manage(camilla_settings)
         .attach(Settings::init())
         .attach(AdHoc::try_on_ignite("DB Migrations", run_migrations))
+        .attach(AdHoc::try_on_ignite(
+            "Camilla Connections",
+            load_latest_config,
+        ))
         .mount(
             "/",
             routes![
