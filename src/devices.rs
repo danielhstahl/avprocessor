@@ -68,7 +68,7 @@ impl Devices {
     pub fn hdmi_osmc_pi(input_channels: usize, output_channels: usize) -> Self {
         Self {
             samplerate: 96000, //high sample rate; should be transparent
-            chunksize: 2048,
+            chunksize: 1024,
             queuelimit: 4,
             capture_samplerate: 48000, //any source needs to resample 44.1 to 48
             capture: CaptureConfig {
